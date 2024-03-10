@@ -33,7 +33,7 @@ Coleta os indicadores financeiros das ações e FIIs para análise posterior.
 
 ### Algoritmos de Avaliação
 Executa algoritmos de Bazin e Graham nos indicadores coletados, fornecendo insights sobre o potencial de valorização das ações.
-[Download do arquivo indicadores.csv](valor_intrinseco.csv)
+[Download do arquivo valor_intrinseco.csv](valor_intrinseco.csv)
 
 ### Exemplos de Uso
 
