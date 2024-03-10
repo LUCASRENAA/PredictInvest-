@@ -24,12 +24,16 @@ O aplicativo é executado a partir da linha de comando e oferece as seguintes op
 
 A previsão de dividendos é feita com base nos dados do ano anterior das ações e FIIs. O aplicativo gera um gráfico que mostra a distribuição dos dividendos por mês. Isso pode ajudar os investidores a planejar suas estratégias de investimento com base nas expectativas de renda passiva.
 
+![Previsão de Dividendos](img/Previsão_dividendos.png)
+
 
 ### Coleta de Indicadores 
 Coleta os indicadores financeiros das ações e FIIs para análise posterior.
+[Download do arquivo indicadores.csv](indicadores.csv)
 
 ### Algoritmos de Avaliação
 Executa algoritmos de Bazin e Graham nos indicadores coletados, fornecendo insights sobre o potencial de valorização das ações.
+[Download do arquivo indicadores.csv](valor_intrinseco.csv)
 
 ### Exemplos de Uso
 
