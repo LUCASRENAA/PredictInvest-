@@ -1,7 +1,7 @@
 import csv
 import math
 from datetime import datetime
-
+from main import formatar_data
 def calcular_valor_intrinseco(lpa, vpa):
     multiplicador = 12
     valor_intrinseco = math.sqrt(multiplicador * lpa * vpa)
@@ -51,46 +51,54 @@ def aplicar_valor_intrinseco():
                 valor_atual_porcentagem_bazin = 100*round(float(bazin_valor), 2)/valor_atuala
                 valor_atual_porcentagem_valor_intrinseco = 100*round(float(valor_intrinseco), 2)/valor_atuala
 
-                #print(f'{ticker}: valor atual: {valor_atuala} lpa:{lpa} payout:{payout} valor_intrinseco:{valor_intrinseco} bazin: {bazin_valor}')
-                print(f'{ticker}: valor_pocentagem_Bazin: {valor_atual_porcentagem_bazin -100}  valor_intriseco: {valor_atual_porcentagem_valor_intrinseco-100}')
-
-                #print()
-                #print(bazin_valor)
-                # Escrever os dados no arquivo valor_intrinseco.csv
                 escritor_csv.writerow(linha)
+def cor(variacao):
+            if variacao > 0:
+                return 'green'
+            elif variacao < 0:
+                return 'red'
+            else:
+                return 'grey'
+def gerar_html():
+        import pandas as pd
 
+        # Função para calcular a cor da célula com base na variação percentual
+        
+
+        # Ler o arquivo CSV usando pandas
+        df = pd.read_csv('valor_intrinseco.csv')
+
+        # Calcular a variação percentual entre Valor Atual e Bazin
+        df['Variacao_Bazin'] = ((df['Bazin'] - df['Valor Atual']) / df['Valor Atual']) * 100
+
+        # Calcular a variação percentual entre Valor Atual e Graham
+        df['Variacao_Graham'] = ((df['Valor intrinseco Grahan'] - df['Valor Atual']) / df['Valor Atual']) * 100
+        df['Variacao_Nathalia'] = (((df['Bazin'] - df['Valor Atual']) / df['Valor Atual']) * 100 + ((df['Valor intrinseco Grahan'] - df['Valor Atual']) / df['Valor Atual']) * 100)/2
+
+        # Aplicar a função de cor para as colunas Bazin e Graham
+        df['Bazin'] = df['Variacao_Bazin'].apply(lambda x: f'<span style="background-color:{cor(x)}; color:black;">{x:.2f}%</span>')
+        df['Valor intrinseco Grahan'] = df['Variacao_Graham'].apply(lambda x: f'<span style="background-color:{cor(x)}; color:black;">{x:.2f}%</span>')
+        df['Metodo de Nathalia'] = df['Variacao_Nathalia'].apply(lambda x: f'<span style="background-color:{cor(x)}; color:black;">{x:.2f}%</span>')
+
+        # Escrever os dados em um arquivo HTML
+        data = formatar_data()
+        with open(f'arquivos/saida{str(data)}.html', 'w') as htmlfile:
+            htmlfile.write('<html>\n<head>\n<style>\ntable {border-collapse: collapse;}\n')
+            htmlfile.write('td, th {border: 1px solid black; padding: 8px; text-align: center;}\n')
+            htmlfile.write('</style>\n</head>\n<body>\n')
+
+            htmlfile.write('<table>\n<tr><th>Ação</th><th>Bazin</th><th>Graham</th><th>Nathalia</th></tr>\n')
+            for index, row in df.iterrows():
+                htmlfile.write(f'<tr><td>{row["Ticker"]}</td>')
+                htmlfile.write(f'<td style="background-color:{cor(row["Variacao_Bazin"])}">{row["Bazin"]}</td>')
+                htmlfile.write(f'<td style="background-color:{cor(row["Variacao_Graham"])}">{row["Valor intrinseco Grahan"]}</td>')
+                htmlfile.write(f'<td style="background-color:{cor(row["Variacao_Nathalia"])}">{row["Metodo de Nathalia"]}</td></tr>\n')
+
+            htmlfile.write('</table>\n</body>\n</html>')
 
 if __name__ == '__main__':
     aplicar_valor_intrinseco()
+    gerar_html()
 
 
 
-import pandas as pd
-
-# Caminho do arquivo CSV
-caminho_arquivo = 'valor_intrinseco.csv'
-
-# Leitura do arquivo CSV usando pandas
-df = pd.read_csv(caminho_arquivo)
-
-# Iterando sobre cada linha do DataFrame
-for index, row in df.iterrows():
-    ticker = row['Ticker']
-    valor_atual = row['Valor Atual']
-    valor_intrinseco_grahan = row['Valor intrinseco Grahan']
-    valor_intrinseco_bazin = row['Bazin']
-
-    # Calculando a variação percentual em relação ao Valor intrínseco de Grahan e Bazin
-    variacao_grahan = ((valor_atual - valor_intrinseco_grahan) / valor_atual) * 100
-    variacao_bazin = ((valor_atual - valor_intrinseco_bazin) / valor_atual) * 100
-
-    # Verificando se a empresa pode subir ou descer com base nos valores intrínsecos
-    mensagem_grahan = f'A empresa {ticker} pode subir {variacao_grahan:.2f}%' if variacao_grahan > 0 else f'A empresa {ticker} pode descer {variacao_grahan:.2f}%'
-    mensagem_bazin = f'A empresa {ticker} pode subir {variacao_bazin:.2f}%' if variacao_bazin > 0 else f'A empresa {ticker} pode descer {variacao_bazin:.2f}%'
-
-    # Imprimindo os resultados para cada empresa
-    print("Análise com base no Valor intrínseco de Graham:")
-    print(mensagem_grahan)
-    print("\nAnálise com base no Valor intrínseco de Bazin:")
-    print(mensagem_bazin)
-    print("\n")

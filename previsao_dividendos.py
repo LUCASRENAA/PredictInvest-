@@ -8,11 +8,14 @@ import csv
 import statistics
 from collections import Counter
 from io import StringIO
+from main import formatar_data
 
 # Substitua 'seu_arquivo_acoes.csv' e 'seu_arquivo_fiis.csv' pelos caminhos dos seus arquivos CSV
 caminho_arquivo_acoes = 'acoes.csv'
 caminho_arquivo_fiis = 'fiis.csv'
 ano_atual = datetime.now().year
+
+
 
 # Função para obter dados de dividendos de ações
 def obter_dividendos_acao(ticket, quantidade):
@@ -122,7 +125,6 @@ if 1 == 1:
     previsto_mensal_total_com_total['TOTAL'] = previsto_mensal_total_com_total.sum(axis=1)
 
     # Exibe o DataFrame com a nova coluna
-    print(previsto_mensal_total_com_total)
 
     # Restante do seu código para calcular estatísticas, plotar gráficos etc.
 
@@ -164,24 +166,29 @@ if 1 == 1:
     minimo_total = min(total_column)
 
     # Exibe as estatísticas para a coluna 'TOTAL'
-    print(f'Média TOTAL: {media_total:.2f}')
-    print(f'Mediana TOTAL: {mediana_total:.2f}')
-    print(f'Moda TOTAL: {moda_total}')
-    print(f'Máximo TOTAL: {maximo_total:.2f}')
-    print(f'Mínimo TOTAL: {minimo_total:.2f}')
+    #print(f'Média TOTAL: {media_total:.2f}')
+    #print(f'Mediana TOTAL: {mediana_total:.2f}')
+    #print(f'Moda TOTAL: {moda_total}')
+    #print(f'Máximo TOTAL: {maximo_total:.2f}')
+    #print(f'Mínimo TOTAL: {minimo_total:.2f}')
 
-
+    # Define as informações do gráfico
     ax = previsto_mensal_total.plot(kind='bar', xlabel='Mês', ylabel='Valor Previsto', title=f'Previsão de Dividendos para {ano_atual}', legend=True, stacked=True)
     ax.set_xticklabels(meses_ordenados_portugues)
 
     ax.annotate(f'Média: {media_total}\nModa: {moda_total}\nMáximo: {maximo_total:.2f}\nMínimo: {minimo_total:.2f}',
-            xy=(0.97, 0.95), xycoords='axes fraction', fontsize=8, ha='right', va='top')
+                xy=(0.97, 0.95), xycoords='axes fraction', fontsize=8, ha='right', va='top')
 
-    # Obter o número de barras no gráfico
-    num_barras = len(previsto_mensal_total)
+    # Ajusta a posição da legenda para o lado esquerdo do gráfico
+    ax.legend(loc='best', bbox_to_anchor=(0, 1))
 
-    # Ajustar o tamanho da figura de acordo com o número de barras
-    plt.gcf().set_size_inches(0.5 * num_barras, 6)
+    # Define o tamanho da figura para ser responsivo à tela do monitor
+    fig = plt.gcf()
+    fig.set_size_inches(18.5, 10.5)  # Tamanho da figura em polegadas (largura, altura)
 
     # Salvar o gráfico como uma imagem PNG com tamanho adaptável
-    plt.savefig('img/prv.png', format='png', bbox_inches='tight')
+    data_atual = formatar_data()
+    plt.savefig(f'arquivos/previsao{data_atual}.png', format='png', bbox_inches='tight')
+
+    # Exibir o gráfico
+    plt.show()

@@ -26,12 +26,13 @@ def extrair_payout(ticker):
         # Imprima os resultados
         for i, payout_ratio in enumerate(payout_ratios, start=1):
             if i == 34:
-                print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
+                #print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
                 payout = payout_ratio
             #print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
             #payout = payout_ratio
     else:
-        print(f'Erro ao acessar a página. Código de status: {response.status_code}')
+        pass
+        #print(f'Erro ao acessar a página. Código de status: {response.status_code}')
     return payout
 def obter_valor_acao_brasileira(ticker):
     try:
@@ -49,7 +50,7 @@ def obter_valor_acao_brasileira(ticker):
         return valor_atual
 
     except Exception as e:
-        print(f"Erro ao obter valor da ação {ticker}: {e}")
+        #print(f"Erro ao obter valor da ação {ticker}: {e}")
         return None
     
 
@@ -111,8 +112,8 @@ def processar_acoes():
                 # Obter indicadores usando a função
                 indicadores = obter_indicadores(ticker, quantidade)
                 valor_acao_brasil = obter_valor_acao_brasileira(ticker)
-                print(ticker)
-                #print(extrair_payout(ticker))
+                #print(ticker)
+                extrair_payout(ticker)
 
                
                 # Escrever os dados no arquivo indicadores.csv

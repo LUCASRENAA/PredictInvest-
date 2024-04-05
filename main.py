@@ -1,6 +1,16 @@
 import argparse
 import subprocess
 
+
+def formatar_data():
+    import datetime
+
+    data_atual = datetime.datetime.now()
+    data_formatada = data_atual.strftime("%d-%m-%Y %H %M %S")
+    #print("Data atual:", data_formatada)
+    return data_formatada
+
+
 def previsao_dividendos():
     subprocess.call(["python", "previsao_dividendos.py"])
 
@@ -26,7 +36,7 @@ def main():
     parser.add_argument("--pegar_indicadores", "-pi", action="store_true", help="Coletar os indicadores das ações.")
 
     # Adiciona argumento para execução dos algoritmos de Bazin e Graham nos indicadores
-    parser.add_argument("--algoritmos", "-pa", action="store_true", help="Executar algoritmos de Bazin e Graham nos indicadores coletados. Para Bazin foi utilizado essa formula (lpa*payout/100)/0.07 e para Graham foi utilizado (12 * lpa * vpa)")
+    parser.add_argument("--algoritmos", "-pa", action="store_true", help="Executar algoritmos de Bazin e Graham nos indicadores coletados. Para Bazin foi utilizado essa formula (lpa*payout/100)/0.07, para Graham foi utilizado (12 * lpa * vpa) e para o metodo nathalia foi feito a média dos dois algoritmos anteriores")
 
 
     # Adiciona argumento para executar todas as opções
@@ -57,4 +67,6 @@ def main():
             algoritmos()
 
 if __name__ == "__main__":
+    
+
     main()
