@@ -7,6 +7,7 @@ from datetime import datetime
 import csv
 import statistics
 from collections import Counter
+from io import StringIO
 
 # Substitua 'seu_arquivo_acoes.csv' e 'seu_arquivo_fiis.csv' pelos caminhos dos seus arquivos CSV
 caminho_arquivo_acoes = 'acoes.csv'
@@ -20,10 +21,9 @@ def obter_dividendos_acao(ticket, quantidade):
     html = response.text
     soup = BeautifulSoup(html, 'html.parser')
     tabela_html = soup.find('table')
-    tabela = pd.read_html(str(tabela_html), decimal=',', thousands='.')[0]
+    tabela = pd.read_html(StringIO(str(tabela_html)), decimal=',', thousands='.')[0]
     tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
     dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (ano_atual - 1)].copy()
-    print( dados_ano_anterior['Valor'])
 
     dados_ano_anterior.loc[:, 'Valor Total'] = dados_ano_anterior['Valor'] * quantidade
     return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum()
@@ -37,15 +37,12 @@ def obter_dividendos_fii(ticker,quantidade):
     html = response.text
     soup = BeautifulSoup(html, 'html.parser')
     dividends_table = soup.find('table', {'id': 'table-dividends-history'})
-    table_data = pd.read_html(str(dividends_table), decimal=',', thousands='.')[0]
+    table_data = pd.read_html(StringIO(str(dividends_table)), decimal=',', thousands='.')[0]
     table_data['Pagamento'] = pd.to_datetime(table_data['Pagamento'], format='%d/%m/%Y', errors='coerce')
     dados_ano_anterior = table_data[table_data['Pagamento'].dt.year == (ano_atual - 1)].copy()
-    print(type( dados_ano_anterior['Valor']))
-    print( dados_ano_anterior['Valor'])
     lista = [quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade]
     dados_ano_anterior.loc[:, 'Valor Total'] = dados_ano_anterior['Valor'].mul(lista)
     # Multiplicando a Série 'Valor' pela quantidade
-    print(type( dados_ano_anterior['Valor']))
     
     return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum()
 
@@ -81,7 +78,6 @@ try:
             fii = linha[0]
 
             quantidadde = linha[1]
-            print(quantidadde)
 
             tickers_fiis.append(fii)
             previsto_mensal_fii = obter_dividendos_fii(fii,quantidadde)
@@ -92,10 +88,6 @@ except:
 if 1 == 1:
     previsto_mensal_total = pd.concat(previsto_mensal_por_ticket, axis=1)
     previsto_mensal_total.columns = tickers_acoes + tickers_fiis
-
-    print(previsto_mensal_total.columns)
-    print(previsto_mensal_total)
-
 
 
 
@@ -185,4 +177,11 @@ if 1 == 1:
     ax.annotate(f'Média: {media_total}\nModa: {moda_total}\nMáximo: {maximo_total:.2f}\nMínimo: {minimo_total:.2f}',
             xy=(0.97, 0.95), xycoords='axes fraction', fontsize=8, ha='right', va='top')
 
-    plt.show()
+    # Obter o número de barras no gráfico
+    num_barras = len(previsto_mensal_total)
+
+    # Ajustar o tamanho da figura de acordo com o número de barras
+    plt.gcf().set_size_inches(0.5 * num_barras, 6)
+
+    # Salvar o gráfico como uma imagem PNG com tamanho adaptável
+    plt.savefig('img/prv.png', format='png', bbox_inches='tight')
