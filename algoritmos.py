@@ -16,7 +16,7 @@ def aplicar_valor_intrinseco():
         
         # Abrir o arquivo valor_intrinseco.csv para escrita
         with open('valor_intrinseco.csv', mode='w', newline='', encoding='utf-8') as arquivo_valor_intrinseco:
-            campos = ['Ticker', 'Quantidade', 'Setor', 'Data de atualização', 'Valor Atual', 'PAYOUT', 'LPA', 'VPA', 'P/L', 'P/VP', 'P/SR', 'ROE', 'ROA', 'EBITDA', 'Margem bruta', 'Margem líquida', 'Margem EBITDA', 'Margem operacional', 'P/CF', 'Liquidez corrente', 'Liquidez imediata', 'Liquidez seca', 'Giro do ativo', 'Endividamento geral', 'Ativo por ação', 'Dívida bruta', 'Dívida líquida', 'Capital de giro', 'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT','Valor intrinseco Grahan', 'Bazin']
+            campos = ['Ticker', 'Quantidade', 'Setor', 'Data de atualização', 'valor_atual', 'PAYOUT', 'LPA', 'VPA', 'P/L', 'P/VP', 'P/SR', 'ROE', 'ROA', 'EBITDA', 'Margem bruta', 'Margem líquida', 'Margem EBITDA', 'Margem operacional', 'P/CF', 'Liquidez corrente', 'Liquidez imediata', 'Liquidez seca', 'Giro do ativo', 'Endividamento geral', 'Ativo por ação', 'Dívida bruta', 'Dívida líquida', 'Capital de giro', 'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT','Valor intrinseco Grahan', 'Bazin']
             escritor_csv = csv.DictWriter(arquivo_valor_intrinseco, fieldnames=campos)
 
             # Escrever o cabeçalho no arquivo valor_intrinseco.csv
@@ -44,7 +44,7 @@ def aplicar_valor_intrinseco():
                 # Adicionar o valor intrínseco aos dados
                 linha['Valor intrinseco Grahan'] = round(float(valor_intrinseco), 2)
                 linha['Bazin'] = round(float(bazin_valor), 2)
-                valor_atuala = linha['Valor Atual']
+                valor_atuala = linha['valor_atual']
                 valor_atuala = round(float(valor_atuala), 2)
 
 
@@ -68,12 +68,12 @@ def gerar_html():
         # Ler o arquivo CSV usando pandas
         df = pd.read_csv('valor_intrinseco.csv')
 
-        # Calcular a variação percentual entre Valor Atual e Bazin
-        df['Variacao_Bazin'] = ((df['Bazin'] - df['Valor Atual']) / df['Valor Atual']) * 100
+        # Calcular a variação percentual entre valor_atual e Bazin
+        df['Variacao_Bazin'] = ((df['Bazin'] - df['valor_atual']) / df['valor_atual']) * 100
 
-        # Calcular a variação percentual entre Valor Atual e Graham
-        df['Variacao_Graham'] = ((df['Valor intrinseco Grahan'] - df['Valor Atual']) / df['Valor Atual']) * 100
-        df['Variacao_Nathalia'] = (((df['Bazin'] - df['Valor Atual']) / df['Valor Atual']) * 100 + ((df['Valor intrinseco Grahan'] - df['Valor Atual']) / df['Valor Atual']) * 100)/2
+        # Calcular a variação percentual entre valor_atual e Graham
+        df['Variacao_Graham'] = ((df['Valor intrinseco Grahan'] - df['valor_atual']) / df['valor_atual']) * 100
+        df['Variacao_Nathalia'] = (((df['Bazin'] - df['valor_atual']) / df['valor_atual']) * 100 + ((df['Valor intrinseco Grahan'] - df['valor_atual']) / df['valor_atual']) * 100)/2
 
         # Aplicar a função de cor para as colunas Bazin e Graham
         df['Bazin'] = df['Variacao_Bazin'].apply(lambda x: f'<span style="background-color:{cor(x)}; color:black;">{x:.2f}%</span>')

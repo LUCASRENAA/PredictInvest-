@@ -90,14 +90,14 @@ def converter_valor_para_float(valor):
         return None
 
 # Função para ler o arquivo acoes.csv e escrever em indicadores.csv
-def processar_acoes():
+def processar_acoes(arquivo_leitura,arquivo_saida):
     # Abrir o arquivo acoes.csv para leitura
-    with open('acoes.csv', newline='', encoding='utf-8') as arquivo_acoes:
+    with open(arquivo_leitura, newline='', encoding='utf-8') as arquivo_acoes:
         leitor_csv = csv.DictReader(arquivo_acoes)
         
         # Abrir o arquivo indicadores.csv para escrita
-        with open('indicadores.csv', mode='w', newline='', encoding='utf-8') as arquivo_indicadores:
-            campos = ['Ticker', 'Quantidade', 'Setor', 'Data de atualização', 'Valor Atual', 'PAYOUT', 'LPA', 'VPA', 'P/L', 'P/VP', 'P/SR', 'ROE', 'ROA', 'EBITDA', 'Margem bruta', 'Margem líquida', 'Margem EBITDA', 'Margem operacional', 'P/CF', 'Liquidez corrente', 'Liquidez imediata', 'Liquidez seca', 'Giro do ativo', 'Endividamento geral', 'Ativo por ação', 'Dívida bruta', 'Dívida líquida', 'Capital de giro', 'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT']
+        with open(arquivo_saida, mode='w', newline='', encoding='utf-8') as arquivo_indicadores:
+            campos = ['Ticker', 'Quantidade', 'Setor', 'Data de atualização', 'valor_atual', 'PAYOUT', 'LPA', 'VPA', 'P/L', 'P/VP', 'P/SR', 'ROE', 'ROA', 'EBITDA', 'Margem bruta', 'Margem líquida', 'Margem EBITDA', 'Margem operacional', 'P/CF', 'Liquidez corrente', 'Liquidez imediata', 'Liquidez seca', 'Giro do ativo', 'Endividamento geral', 'Ativo por ação', 'Dívida bruta', 'Dívida líquida', 'Capital de giro', 'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT']
             escritor_csv = csv.DictWriter(arquivo_indicadores, fieldnames=campos)
 
             # Escrever o cabeçalho no arquivo indicadores.csv
@@ -108,26 +108,47 @@ def processar_acoes():
                 ticker = linha['Ticker']
                 quantidade = linha['Quantidade']
                 setor = linha['Setor']
+                print(ticker)
+                try:
+                    # Obter indicadores usando a função
+                    indicadores = obter_indicadores(ticker, quantidade)
+                    valor_acao_brasil = obter_valor_acao_brasileira(ticker)
+                    #print(ticker)
+                    extrair_payout(ticker)
 
-                # Obter indicadores usando a função
-                indicadores = obter_indicadores(ticker, quantidade)
-                valor_acao_brasil = obter_valor_acao_brasileira(ticker)
-                #print(ticker)
-                extrair_payout(ticker)
+                
+                    # Escrever os dados no arquivo indicadores.csv
+                    try:
+                        linha_indicadores = {
+                            'Ticker': ticker,
+                            'Quantidade': quantidade,
+                            'Setor': setor,
+                            'Data de atualização': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'valor_atual': valor_acao_brasil,
+                            'PAYOUT': extrair_payout(ticker)
 
-               
-                # Escrever os dados no arquivo indicadores.csv
-                linha_indicadores = {
-                    'Ticker': ticker,
-                    'Quantidade': quantidade,
-                    'Setor': setor,
-                    'Data de atualização': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'Valor Atual': valor_acao_brasil,
-                    'PAYOUT': extrair_payout(ticker)
+                        }
+                    except:
+                        linha_indicadores = {
+                        'Ticker': ticker,
+                        'Quantidade': quantidade,
+                        'Setor': setor,
+                        'Data de atualização': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'valor_atual': valor_acao_brasil,
+                        'PAYOUT': 0
 
-                }
-                linha_indicadores.update(indicadores)
-                escritor_csv.writerow(linha_indicadores)
+                    }
+                    linha_indicadores.update(indicadores)
+                    escritor_csv.writerow(linha_indicadores)
+                except:
+                    print(f"deu erro {ticker}")
 
 if __name__ == '__main__':
-    processar_acoes()
+    import sys
+    if len(sys.argv) != 3:
+        print("Uso: python pegar_indicadores.py arquivo_saida.csv")
+    else:
+        arquivo_leitura = sys.argv[1]
+        arquivo_saida = sys.argv[2]
+
+        processar_acoes(arquivo_leitura,arquivo_saida)
