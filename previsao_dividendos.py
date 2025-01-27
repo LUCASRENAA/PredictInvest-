@@ -9,6 +9,7 @@ import statistics
 from collections import Counter
 from io import StringIO
 from main import formatar_data
+import os
 
 # Configurações iniciais
 Caminho_Arquivo_Acoes = 'acoes.csv'
@@ -157,7 +158,14 @@ fig.set_size_inches(18.5, 10.5)
 
 # Salva o gráfico
 data_atual = formatar_data()
-plt.savefig(f'arquivos/previsao{data_atual}.png', format='png', bbox_inches='tight')
+
+path = 'arquivos/'
+img = f'previsao_{data_atual}.png'
+
+if not os.path.exists(path):
+    os.makedirs(path)
+
+plt.savefig(path + img, format='png', bbox_inches='tight')
 
 # Exibe o gráfico
 plt.show()
