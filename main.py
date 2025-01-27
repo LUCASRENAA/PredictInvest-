@@ -31,7 +31,10 @@ def atualizar_web():
     # Autentica na API e obtém o token de acesso
     username = "admin"
     password = "admin"
-    access_token = get_access_token(username, password)
+    try:
+        access_token = get_access_token(username, password)
+    except:
+        access_token = False
 
     if access_token:
         print("Token de Acesso:", access_token)
@@ -62,7 +65,12 @@ def atualizar_web():
             else:
                 print(f"Falha ao criar ticket para {name}: {response.text}")
     else:
-        print("Falha na autenticação.")
+        for stock in brazilian_stocks.iterrows():
+            #print(stock)
+            #name = stock[1]['name']
+            ticket = stock[1]['symbol']
+            import os 
+            os.system(f"echo {ticket},, >> acoes_all.csv")
         
 def main():
     # Criação do parser de argumentos

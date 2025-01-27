@@ -10,185 +10,154 @@ from collections import Counter
 from io import StringIO
 from main import formatar_data
 
-# Substitua 'seu_arquivo_acoes.csv' e 'seu_arquivo_fiis.csv' pelos caminhos dos seus arquivos CSV
-caminho_arquivo_acoes = 'acoes.csv'
-caminho_arquivo_fiis = 'fiis.csv'
-ano_atual = datetime.now().year
+# Configurações iniciais
+Caminho_Arquivo_Acoes = 'acoes.csv'
+Caminho_Arquivo_Fiis = 'fiis.csv'
+Ano_Atual = datetime.now().year
 
+# Função para limpar e arredondar valores
+def limpar_e_arredondar(valor):
+    try:
+        valor_limpo = str(valor).replace('*', '').replace(',', '.')
+        if valor_limpo.count('.') > 1:
+            valor_limpo = valor_limpo.split('.')[0] + '.' + valor_limpo.split('.')[1]
+        valor_convertido = float(valor_limpo)
 
+        if valor_convertido in {float('inf'), float('-inf')} or valor_convertido != valor_convertido:
+            return 0
+        return round(valor_convertido, 2)
+    except (ValueError, TypeError):
+        return 0
 
-# Função para obter dados de dividendos de ações
+# Funções para obter dados de dividendos
 def obter_dividendos_acao(ticket, quantidade):
-    url = f'https://www.dadosdemercado.com.br/bolsa/acoes/{ticket}/dividendos'
+    print(f"Obtendo dividendos da ação: {ticket}")
+    url = f'https://www.dadosdemercado.com.br/acoes/{ticket}/dividendos'
     response = requests.get(url)
-    html = response.text
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(response.text, 'html.parser')
     tabela_html = soup.find('table')
     tabela = pd.read_html(StringIO(str(tabela_html)), decimal=',', thousands='.')[0]
     tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
-    dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (ano_atual - 1)].copy()
+    
+    dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (Ano_Atual - 1)].copy()
 
-    dados_ano_anterior.loc[:, 'Valor Total'] = dados_ano_anterior['Valor'] * quantidade
-    return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum()
+    valores = dados_ano_anterior['Valor'].apply(limpar_e_arredondar)
 
-# Função para obter dados de dividendos de FIIs
-def obter_dividendos_fii(ticker,quantidade):
-    quantidade = float(quantidade)
-    url = f'https://investidor10.com.br/fiis/{ticker}/'
+    dados_ano_anterior['Valor Total'] = valores.apply(lambda x: x * quantidade if x else 0)
+    print(f"Dividendos da ação {ticket} para o ano anterior:\n{dados_ano_anterior}")
+    return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum().fillna(0)
+
+def obter_dividendos_fii(ticket, quantidade):
+    print(f"Obtendo dividendos do FII: {ticket}")
+    url = f'https://investidor10.com.br/fiis/{ticket}/'
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     response = requests.get(url, headers=headers)
-    html = response.text
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(response.text, 'html.parser')
     dividends_table = soup.find('table', {'id': 'table-dividends-history'})
-    table_data = pd.read_html(StringIO(str(dividends_table)), decimal=',', thousands='.')[0]
-    table_data['Pagamento'] = pd.to_datetime(table_data['Pagamento'], format='%d/%m/%Y', errors='coerce')
-    dados_ano_anterior = table_data[table_data['Pagamento'].dt.year == (ano_atual - 1)].copy()
-    lista = [quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade,quantidade]
-    dados_ano_anterior.loc[:, 'Valor Total'] = dados_ano_anterior['Valor'].mul(lista)
-    # Multiplicando a Série 'Valor' pela quantidade
+    tabela = pd.read_html(StringIO(str(dividends_table)), decimal=',', thousands='.')[0]
+    tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
     
-    return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum()
+    dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (Ano_Atual - 1)].copy()
+    dados_ano_anterior['Valor Total'] = dados_ano_anterior['Valor'].apply(lambda x: x * quantidade if x else 0)
+    print(f"Dividendos do FII {ticket} para o ano anterior:\n{dados_ano_anterior}")
+    return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum().fillna(0)
 
-# Lista para armazenar os tickers
-tickers_acoes = []
-tickers_fiis = []
+# Função para ler CSV e obter dividendos
+def ler_e_obter_dividendos(caminho_arquivo, obter_dividendos_func):
+    tickers = []
+    previsto_mensal_por_ticket = []
 
-# Lista para armazenar os DataFrames de previsões mensais
-previsto_mensal_por_ticket = []
+    try:
+        with open(caminho_arquivo, 'r') as arquivo_csv:
+            leitor_csv = csv.reader(arquivo_csv)
+            next(leitor_csv, None)
+            for linha in leitor_csv:
+                ticket = linha[0]
+                quantidade = int(linha[1])
+                tickers.append(ticket)
+                print(f"Lendo {ticket} com quantidade {quantidade}")
+                
+                # Obtém os dividendos mensais e garante que todos os meses (1 a 12) estão presentes
+                previsto_mensal = obter_dividendos_func(ticket, quantidade)
+                
+                # Adiciona 0 para os meses que não possuem dividendos
+                previsto_mensal_completo = previsto_mensal.reindex(range(1, 13), fill_value=0)
+                
+                previsto_mensal_por_ticket.append(previsto_mensal_completo)
+                print(f"Dividendos para {ticket}: {previsto_mensal_completo}")
+                
+    except Exception as e:
+        print(f'Erro ao processar {caminho_arquivo}: {e}')
 
-try:
-    # Lê o arquivo de ações
-    with open(caminho_arquivo_acoes, 'r') as arquivo_csv:
-        leitor_csv = csv.reader(arquivo_csv)
-        next(leitor_csv, None)
+    return tickers, previsto_mensal_por_ticket
 
-        for linha in leitor_csv:
-            acao = linha[0]
-            quantidade = int(linha[1])
-            tickers_acoes.append(acao)
-            previsto_mensal_acao = obter_dividendos_acao(acao, quantidade)
-            previsto_mensal_por_ticket.append(previsto_mensal_acao)
-except:
-    pass
+# Obter dividendos de ações e FIIs
+tickers_acoes, previsto_mensal_acoes = ler_e_obter_dividendos(Caminho_Arquivo_Acoes, obter_dividendos_acao)
+tickers_fiis, previsto_mensal_fiis = ler_e_obter_dividendos(Caminho_Arquivo_Fiis, obter_dividendos_fii)
 
-try:
-    # Lê o arquivo de FIIs
-    with open(caminho_arquivo_fiis, 'r') as arquivo_csv:
-        leitor_csv = csv.reader(arquivo_csv)
-        next(leitor_csv, None)
+print("Dividendos de ações:", previsto_mensal_acoes)
+print("Dividendos de FIIs:", previsto_mensal_fiis)
 
-        for linha in leitor_csv:
-            fii = linha[0]
+# Combina os dividendos em um único DataFrame
+todos_previstos = pd.concat(previsto_mensal_acoes + previsto_mensal_fiis, axis=1)
+todos_previstos.columns = tickers_acoes + tickers_fiis
 
-            quantidadde = linha[1]
+# Renomeia os índices dos meses
+meses_ordenados_portugues = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+]
 
-            tickers_fiis.append(fii)
-            previsto_mensal_fii = obter_dividendos_fii(fii,quantidadde)
-            previsto_mensal_por_ticket.append(previsto_mensal_fii)
-except:
-    pass
-# Combina os DataFrames de previsões mensais em um único DataFrame
-if 1 == 1:
-    previsto_mensal_total = pd.concat(previsto_mensal_por_ticket, axis=1)
-    previsto_mensal_total.columns = tickers_acoes + tickers_fiis
+# Ajuste no reindex para garantir que os meses de 1 a 12 sejam reindexados corretamente
+todos_previstos.index = meses_ordenados_portugues
 
+# Limpa e arredonda os valores do DataFrame
+print("Antes da limpeza e arredondamento:")
+print(todos_previstos.head())
+todos_previstos_limpos = todos_previstos.apply(lambda x: x.apply(limpar_e_arredondar)).apply(pd.to_numeric, errors='coerce').fillna(0)
+print("Depois da limpeza e arredondamento:")
+print(todos_previstos_limpos.head())
 
+# Soma os dividendos de todos os tickers por mês
+todos_previstos_limpos['TOTAL'] = todos_previstos_limpos.sum(axis=1)
+print("Somatório total dos dividendos por mês:")
+print(todos_previstos_limpos['TOTAL'])
 
-    import pandas as pd
-    from bs4 import BeautifulSoup
-    import requests
-    from datetime import datetime
-    import calendar
-    import statistics
-    from collections import Counter
-    import matplotlib.pyplot as plt
-    # Renomeia os índices (números dos meses) para os nomes dos meses
-    previsto_mensal_total.index = [calendar.month_name[i] for i in previsto_mensal_total.index]
+# Função para calcular estatísticas
+def calcular_estatisticas(data):
+    media = statistics.mean(data)
+    mediana = statistics.median(data)
+    contagem = Counter(data)
+    modos = [valor for valor, freq in contagem.items() if freq == contagem.most_common(1)[0][1]]
+    moda = modos[0] if len(modos) == 1 else 'No unique mode'
+    maximo = max(data)
+    minimo = min(data)
 
-    # Cria uma lista de meses ordenados, com dezembro como o último mês
-    meses_ordenados = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-    ]
-    meses_ordenados_portugues = [
-        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ]
+    return media, mediana, moda, maximo, minimo
 
-    # Reordena os meses do DataFrame de acordo com a ordem dos meses do calendário
-    previsto_mensal_total = previsto_mensal_total.reindex(meses_ordenados)
+# Estatísticas do total
+estatisticas_total = calcular_estatisticas(todos_previstos_limpos['TOTAL'])
+print(f"Estatísticas do total de dividendos: {estatisticas_total}")
 
-    # Adicione esta linha para criar uma cópia do DataFrame original
-    previsto_mensal_total_com_total = previsto_mensal_total.copy()
+todos_previstos_limpos = todos_previstos_limpos.drop(columns=['TOTAL'])
 
-    # Soma total de cada linha (mês) e adiciona como uma nova coluna chamada 'TOTAL'
-    previsto_mensal_total_com_total['TOTAL'] = previsto_mensal_total_com_total.sum(axis=1)
+# Plotando o gráfico
+ax = todos_previstos_limpos.plot(kind='bar', xlabel='Mês', ylabel='Valor Previsto', title=f'Previsão de Dividendos para {Ano_Atual}', legend=True, stacked=True)
+ax.set_xticklabels(meses_ordenados_portugues)
 
-    # Exibe o DataFrame com a nova coluna
+# Adiciona estatísticas no gráfico
+ax.annotate(f'Média: {estatisticas_total[0]:.2f}\nModa: {estatisticas_total[2]}\nMáximo: {estatisticas_total[3]:.2f}\nMínimo: {estatisticas_total[4]:.2f}',
+            xy=(0.97, 0.95), xycoords='axes fraction', fontsize=8, ha='right', va='top')
 
-    # Restante do seu código para calcular estatísticas, plotar gráficos etc.
+# Ajusta a posição da legenda
+ax.legend(loc='best', bbox_to_anchor=(0, 1))
 
+# Ajusta o tamanho do gráfico
+fig = plt.gcf()
+fig.set_size_inches(18.5, 10.5)
 
-    # Calcula estatísticas para todos os meses, incluindo a nova coluna 'TOTAL'
-    estatisticas_por_mes_com_total = pd.DataFrame(index=['Média', 'Mediana', 'Moda', 'Máximo', 'Mínimo'])
+# Salva o gráfico
+data_atual = formatar_data()
+plt.savefig(f'arquivos/previsao{data_atual}.png', format='png', bbox_inches='tight')
 
-    # Lista para armazenar todos os proventos de cada mês, incluindo a nova coluna 'TOTAL'
-    todos_os_proventos_com_total = []
-
-    # Loop sobre os meses
-    for mes in previsto_mensal_total_com_total.index:
-        # Pega todos os proventos do mês, incluindo a nova coluna 'TOTAL'
-        valores_mes = previsto_mensal_total_com_total.loc[mes].values
-
-        # Adiciona 0 se não houver valores no mês
-        if len(valores_mes) == 0:
-            valores_mes = [0]
-
-        todos_os_proventos_com_total.extend(valores_mes)
-
-    import statistics
-    from collections import Counter
-
-    # Considere somente a coluna 'TOTAL'
-    total_column = previsto_mensal_total_com_total['TOTAL']
-
-    # Calcula estatísticas para a coluna 'TOTAL'
-    media_total = statistics.mean(total_column)
-    mediana_total = statistics.median(total_column)
-
-    # Calcula a moda usando Counter
-    contagem_total = Counter(total_column)
-    modos_total = [valor for valor, freq in contagem_total.items() if freq == contagem_total.most_common(1)[0][1]]
-    # Adiciona 'No unique mode' se não houver um valor modal único
-    moda_total = modos_total[0] if len(modos_total) == 1 else 'No unique mode'
-
-    maximo_total = max(total_column)
-    minimo_total = min(total_column)
-
-    # Exibe as estatísticas para a coluna 'TOTAL'
-    #print(f'Média TOTAL: {media_total:.2f}')
-    #print(f'Mediana TOTAL: {mediana_total:.2f}')
-    #print(f'Moda TOTAL: {moda_total}')
-    #print(f'Máximo TOTAL: {maximo_total:.2f}')
-    #print(f'Mínimo TOTAL: {minimo_total:.2f}')
-
-    # Define as informações do gráfico
-    ax = previsto_mensal_total.plot(kind='bar', xlabel='Mês', ylabel='Valor Previsto', title=f'Previsão de Dividendos para {ano_atual}', legend=True, stacked=True)
-    ax.set_xticklabels(meses_ordenados_portugues)
-
-    ax.annotate(f'Média: {media_total}\nModa: {moda_total}\nMáximo: {maximo_total:.2f}\nMínimo: {minimo_total:.2f}',
-                xy=(0.97, 0.95), xycoords='axes fraction', fontsize=8, ha='right', va='top')
-
-    # Ajusta a posição da legenda para o lado esquerdo do gráfico
-    ax.legend(loc='best', bbox_to_anchor=(0, 1))
-
-    # Define o tamanho da figura para ser responsivo à tela do monitor
-    fig = plt.gcf()
-    fig.set_size_inches(18.5, 10.5)  # Tamanho da figura em polegadas (largura, altura)
-
-    # Salvar o gráfico como uma imagem PNG com tamanho adaptável
-    data_atual = formatar_data()
-    plt.savefig(f'arquivos/previsao{data_atual}.png', format='png', bbox_inches='tight')
-
-    # Exibir o gráfico
-    plt.show()
+# Exibe o gráfico
+plt.show()

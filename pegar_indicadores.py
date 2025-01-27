@@ -7,32 +7,35 @@ import requests
 from bs4 import BeautifulSoup
 import re
 def extrair_payout(ticker):
-    url = f"https://br.financas.yahoo.com/quote/{ticker}.SA/key-statistics?p={ticker}.SA"
+    url = f"https://finance.yahoo.com/quote/{ticker}.SA/key-statistics/"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     response = requests.get(url, headers=headers)
     # Faça a solicitação HTTP para obter o conteúdo da página
-
+    payout = 0
     # Verifique se a solicitação foi bem-sucedida (código de status 200)
-    if response.status_code == 200:
-        # Use BeautifulSoup para analisar o HTML da página
-        soup = BeautifulSoup(response.content, 'html.parser')
+    try:
+        if response.status_code == 200:
 
-        # Encontre todas as tags td com a classe específica
-        payout_tags = soup.find_all("td", class_="Fw(500) Ta(end) Pstart(10px) Miw(60px)")
+            # Use BeautifulSoup para analisar o HTML da página
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extraia o texto de cada tag
-        payout_ratios = [tag.text for tag in payout_tags]
+            # Encontre todas as tags td com a classe específica
+            payout_tags = soup.find_all("td", class_="value yf-vaowmx")
 
-        # Imprima os resultados
-        for i, payout_ratio in enumerate(payout_ratios, start=1):
-            if i == 34:
+            # Extraia o texto de cada tag
+            payout_ratios = [tag.text for tag in payout_tags]
+
+            # Imprima os resultados
+            for i, payout_ratio in enumerate(payout_ratios, start=1):
+                if i == 47:
+                    #print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
+                    payout = payout_ratio
                 #print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
-                payout = payout_ratio
-            #print(f'O Payout Ratio {i} da empresa é: {payout_ratio}')
-            #payout = payout_ratio
-    else:
+                #payout = payout_ratio
+    except:
         pass
-        #print(f'Erro ao acessar a página. Código de status: {response.status_code}')
+
+
     return payout
 def obter_valor_acao_brasileira(ticker):
     try:
@@ -55,27 +58,31 @@ def obter_valor_acao_brasileira(ticker):
     
 
 def obter_indicadores(ticket, quantidade):
-    url = f'https://www.dadosdemercado.com.br/bolsa/acoes/{ticket}'
+    url = f'https://www.dadosdemercado.com.br/acoes/{ticket}'
     response = requests.get(url)
     html = response.text
     soup = BeautifulSoup(html, 'html.parser')
 
+    # Encontrar todos os elementos <tr> com a classe "level0"
+    ratios = soup.find_all('tr', class_='level0')
+    
     indicadores = {}
 
-    # Encontrar os elementos com a classe "ratio"
-    ratios = soup.find_all(class_='ratio')
+    # Percorrer cada <tr> que representa uma linha de dados
+    for tr in ratios:
+        # Pega todos os <td> da linha
+        tds = tr.find_all('td', class_='nw')
 
-    for ratio in ratios:
-        span_tags = ratio.find_all('span')
-        if len(span_tags) >= 2:
-            indicador = span_tags[0].text.strip()
-            valor = span_tags[1].text.strip()
+        # Verifica se a linha contém pelo menos dois <td> com a classe "nw"
+        if len(tds) >= 2:
+            indicador = tds[0].text.strip()  # Nome do indicador (ex: P/L)
+            valor = tds[1].text.strip()  # Valor correspondente
 
-            # Trata o valor para remoção de caracteres não numéricos e conversão para float
             valor_convertido = converter_valor_para_float(valor)
-            
-            # Armazena o valor no dicionário de indicadores
-            indicadores[indicador] = valor_convertido
+
+            # Adiciona o indicador e o valor convertido no dicionário, se o valor for válido
+            if valor_convertido is not None:
+                indicadores[indicador] = valor_convertido
 
     return indicadores
 
@@ -114,6 +121,16 @@ def processar_acoes():
                 valor_acao_brasil = obter_valor_acao_brasileira(ticker)
                 #print(ticker)
                 extrair_payout(ticker)
+                import time
+                import random
+
+                # Gera um tempo aleatório entre 5 e 10 segundos
+                tempo_aleatorio = random.uniform(5, 10)
+
+                # Aguarda o tempo gerado
+                time.sleep(tempo_aleatorio)
+
+                print(f"Aguardei {tempo_aleatorio:.2f} segundos, na ação {ticker}")
 
                
                 # Escrever os dados no arquivo indicadores.csv
@@ -127,6 +144,18 @@ def processar_acoes():
 
                 }
                 linha_indicadores.update(indicadores)
+                # Lista de chaves indesejadas
+                chaves_indesejadas = [
+                    'Lucro bruto', 'Caixa líq. invest.', 'Receita líquida', 'Caixa líq. financ.',
+                    'Antes dos impostos', 'Resultado financeiro', 'Op. descontinuadas', 'Passivo total',
+                    'P/Ativos', 'EBIT', 'Caixa líq. operac.', 'Op. continuadas', 'Custos', 'Imposto',
+                    'PSR', 'P/EBIT', 'Ativo total', 'Despesas operacionais', 'Lucro líquido'
+                ]
+
+                # Removendo as chaves indesejadas
+                for chave in chaves_indesejadas:
+                    linha_indicadores.pop(chave, None)  # O 'None' é para evitar erro caso a chave não exista
+
                 escritor_csv.writerow(linha_indicadores)
 
 if __name__ == '__main__':
