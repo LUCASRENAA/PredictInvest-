@@ -130,8 +130,6 @@ paletas_heatmap = [
 paleta_escolhida = random.choice(paletas_cores)
 paleta_heatmap_escolhida = random.choice(paletas_heatmap)
 
-print(paleta_heatmap_escolhida)
-
 # Define um mapeamento fixo de cores para os tickers
 def gerar_mapeamento_cores(tickers):
     return {ticker: cor for ticker, cor in zip(tickers, cycle(paleta_escolhida))}
@@ -169,7 +167,6 @@ def plotar_barras(data, estatisticas, ax):
     adicionar_estatisticas(ax, estatisticas)
 
 def plotar_boxplot(data, ax):
-    cores = [mapeamento_cores[col] for col in data.columns]
     data.T.boxplot(ax=ax, boxprops=dict(linestyle='-', linewidth=2, color='blue'),
                    flierprops=dict(marker='o', color='red', alpha=0.5),
                    medianprops=dict(linestyle='-', linewidth=2, color='green'))
@@ -180,7 +177,7 @@ def plotar_boxplot(data, ax):
 def plotar_tendencia(data, ax):
     for col in data.columns:
         data[col].plot(ax=ax, marker='o', label=col, color=mapeamento_cores[col])
-    ax.legend(loc='upper left', fontsize=10)
+    ax.legend(loc='center left', bbox_to_anchor=(-0.25, 0.5), fontsize=10)
     configurar_grafico(ax, f'Tendência Mensal dos Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
 
 def plotar_heatmap(data, ax):
