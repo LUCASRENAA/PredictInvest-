@@ -9,7 +9,9 @@ import statistics
 from collections import Counter
 from io import StringIO
 import seaborn as sns
+from itertools import cycle
 from main import formatar_data
+import random
 
 # Configurações iniciais
 Caminho_Arquivo_Acoes = 'acoes.csv'
@@ -99,6 +101,45 @@ print(f"Estatísticas do total de dividendos: {estatisticas_total}")
 # Remove a coluna TOTAL para o gráfico
 todos_previstos_limpos = todos_previstos_limpos.drop(columns=['TOTAL'])
 
+# Define uma lista de estilos de paletas de cores para os gráficos
+paletas_cores = [
+    plt.cm.tab20.colors,
+    plt.cm.Paired.colors,
+    plt.cm.Set1.colors,
+    plt.cm.Set2.colors,
+    plt.cm.Set3.colors,
+    plt.cm.Accent.colors,
+    plt.cm.Dark2.colors,
+]
+
+# Define uma lista de estilos de paletas para o heatmap
+paletas_heatmap = [
+    "YlGnBu",
+    "coolwarm",
+    "viridis",
+    "magma",
+    "cubehelix", 
+    "mako",
+    "rocket",
+    "flare",
+    "crest",
+    "vlag",
+    "icefire"
+]
+
+paleta_escolhida = random.choice(paletas_cores)
+paleta_heatmap_escolhida = random.choice(paletas_heatmap)
+
+print(paleta_heatmap_escolhida)
+
+# Define um mapeamento fixo de cores para os tickers
+def gerar_mapeamento_cores(tickers):
+    return {ticker: cor for ticker, cor in zip(tickers, cycle(paleta_escolhida))}
+
+# Gera o mapeamento de cores para os tickers
+tickers = tickers_acoes + tickers_fiis
+mapeamento_cores = gerar_mapeamento_cores(tickers)
+
 # Funções para plotagem de gráficos
 def configurar_grafico(ax, titulo, xlabel, ylabel, xticks=None, rotation=45):
     ax.set_title(titulo, fontsize=16)
@@ -120,7 +161,7 @@ def adicionar_estatisticas(ax, estatisticas):
             ha='right', va='top', bbox=dict(boxstyle="round", facecolor="lightgrey", alpha=0.5))
 
 def plotar_barras(data, estatisticas, ax):
-    cores = plt.cm.tab20.colors
+    cores = [mapeamento_cores[col] for col in data.columns]
     data.plot(kind='bar', ax=ax, stacked=True, color=cores, legend=False)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles, labels, loc='center left', bbox_to_anchor=(-0.25, 0.5), fontsize=10)
@@ -128,6 +169,7 @@ def plotar_barras(data, estatisticas, ax):
     adicionar_estatisticas(ax, estatisticas)
 
 def plotar_boxplot(data, ax):
+    cores = [mapeamento_cores[col] for col in data.columns]
     data.T.boxplot(ax=ax, boxprops=dict(linestyle='-', linewidth=2, color='blue'),
                    flierprops=dict(marker='o', color='red', alpha=0.5),
                    medianprops=dict(linestyle='-', linewidth=2, color='green'))
@@ -136,11 +178,13 @@ def plotar_boxplot(data, ax):
     configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Distribuído (R$)')
 
 def plotar_tendencia(data, ax):
-    data.plot(ax=ax, marker='o')
+    for col in data.columns:
+        data[col].plot(ax=ax, marker='o', label=col, color=mapeamento_cores[col])
+    ax.legend(loc='upper left', fontsize=10)
     configurar_grafico(ax, f'Tendência Mensal dos Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
 
 def plotar_heatmap(data, ax):
-    sns.heatmap(data.T, annot=True, fmt=".2f", cmap="YlGnBu", cbar=True, ax=ax, 
+    sns.heatmap(data.T, annot=True, fmt=".2f", cmap=paleta_heatmap_escolhida, cbar=True, ax=ax, 
                 xticklabels=Meses_Ordenados_Portugues, yticklabels=data.T.index)
     configurar_grafico(ax, f'Mapa de Calor dos Dividendos Mensais - {Ano_Atual}', None, None)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0, ha='right')
