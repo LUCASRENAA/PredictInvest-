@@ -150,13 +150,21 @@ def configurar_grafico(ax, titulo, xlabel, ylabel, xticks=None, rotation=45):
 
 def adicionar_estatisticas(ax, estatisticas):
     estatisticas_texto = (
-        f"Média: {estatisticas[0]:.2f}\n"
-        f"Moda: {estatisticas[2]}\n"
-        f"Máximo: {estatisticas[3]:.2f}\n"
-        f"Mínimo: {estatisticas[4]:.2f}"
+        f"$\\mathbf{{Média}}$: {estatisticas[0]:.2f}\n"
+        f"$\\mathbf{{Moda}}$: {estatisticas[2]}\n"
+        f"$\\mathbf{{Máximo}}$: {estatisticas[3]:.2f}\n"
+        f"$\\mathbf{{Mínimo}}$: {estatisticas[4]:.2f}"
     )
-    ax.text(0.95, 0.95, estatisticas_texto, transform=ax.transAxes, fontsize=10,
-            ha='right', va='top', bbox=dict(boxstyle="round", facecolor="lightgrey", alpha=0.5))
+    ax.annotate(
+        estatisticas_texto,
+        xy=(0.95, 0.95),  # Posição no canto superior direito
+        xycoords='axes fraction',  # Coordenadas relativas ao eixo
+        fontsize=10,
+        ha='right',
+        va='top',
+        multialignment='left',  # Alinha o texto à esquerda
+        bbox=dict(boxstyle="round", facecolor="lightgrey", edgecolor="black", alpha=0.5)
+    )
 
 def plotar_barras(data, estatisticas, ax):
     cores = [mapeamento_cores[col] for col in data.columns]
@@ -172,7 +180,7 @@ def plotar_boxplot(data, ax):
                    medianprops=dict(linestyle='-', linewidth=2, color='green'))
     ax.set_xticks(range(1, len(Meses_Ordenados_Portugues) + 1))
     ax.set_xticklabels(Meses_Ordenados_Portugues, rotation=45, ha='right')
-    configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Distribuído (R$)')
+    configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)')
 
 def plotar_tendencia(data, ax):
     for col in data.columns:
