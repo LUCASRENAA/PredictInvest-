@@ -12,6 +12,7 @@ import seaborn as sns
 from itertools import cycle
 from main import formatar_data
 import random
+import numpy as np
 
 # Configurações iniciais
 Caminho_Arquivo_Acoes = 'acoes.csv'
@@ -139,14 +140,15 @@ tickers = tickers_acoes + tickers_fiis
 mapeamento_cores = gerar_mapeamento_cores(tickers)
 
 # Funções para plotagem de gráficos
-def configurar_grafico(ax, titulo, xlabel, ylabel, xticks=None, rotation=45):
+def configurar_grafico(ax, titulo, xlabel, ylabel, xticks=None, rotation=45, grid_visible=True):
     ax.set_title(titulo, fontsize=16)
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
     if xticks:
         ax.set_xticks(range(len(xticks)))
         ax.set_xticklabels(xticks, rotation=rotation, ha='right')
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    if grid_visible:
+        ax.grid(axis='x', linestyle='--', alpha=0.7)
 
 def adicionar_estatisticas(ax, estatisticas):
     estatisticas_texto = (
@@ -170,38 +172,75 @@ def plotar_barras(data, estatisticas, ax):
     cores = [mapeamento_cores[col] for col in data.columns]
     data.plot(kind='bar', ax=ax, stacked=True, color=cores, legend=False)
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc='center left', bbox_to_anchor=(-0.25, 0.5), fontsize=10)
-    configurar_grafico(ax, f'Previsão Acumulada de Dividendos Mensais - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
+    ax.legend(handles, labels, loc='center left', bbox_to_anchor=(-0.28, 0.5), fontsize=10)
+    configurar_grafico(ax, f'Previsão Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
     adicionar_estatisticas(ax, estatisticas)
 
 def plotar_boxplot(data, ax):
-    data.T.boxplot(ax=ax, boxprops=dict(linestyle='-', linewidth=2, color='blue'),
-                   flierprops=dict(marker='o', color='red', alpha=0.5),
-                   medianprops=dict(linestyle='-', linewidth=2, color='green'))
-    ax.set_xticks(range(1, len(Meses_Ordenados_Portugues) + 1))
-    ax.set_xticklabels(Meses_Ordenados_Portugues, rotation=45, ha='right')
-    configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)')
+    data.T.boxplot(
+        ax=ax,
+        boxprops=dict(linestyle='-', linewidth=2, color='blue'),
+        flierprops=dict(marker='o', color='red', alpha=0.5),
+        medianprops=dict(linestyle='-', linewidth=2, color='green')
+    )
 
-def plotar_tendencia(data, ax):
     for col in data.columns:
-        data[col].plot(ax=ax, marker='o', label=col, color=mapeamento_cores[col])
-    ax.legend(loc='center left', bbox_to_anchor=(-0.25, 0.5), fontsize=10)
-    configurar_grafico(ax, f'Tendência Mensal dos Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
+        if col in mapeamento_cores:  # Garante que a cor está mapeada
+            ax.scatter(
+                range(1, len(data.index) + 1),  # Posições no eixo X
+                data[col],  # Valores no eixo Y
+                marker='o',
+                label=col,
+                color=mapeamento_cores[col],
+                alpha=0.7,
+                zorder=2  # Garante que os pontos fiquem acima do boxplot
+            )
+
+    # Ajusta os rótulos do eixo X para corresponder ao número de caixas no boxplot
+    ax.set_xticks(range(1, len(data.index) + 1))
+    ax.set_xticklabels(data.index, rotation=45, ha='right')
+
+    # Configura o gráfico
+    configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)')
+    ax.legend(loc='center left', bbox_to_anchor=(-0.28, 0.5), fontsize=10)
+
+def plotar_pizza(data, ax):
+    totais_por_ticker = data.sum(axis=0)
+    cores = [mapeamento_cores[ticker] for ticker in totais_por_ticker.index]
+    
+    wedges, texts = ax.pie(
+        totais_por_ticker,
+        startangle=90,
+        colors=cores,
+        wedgeprops=dict(width=0.5)  # Define o buraco no meio
+    )
+    
+    legend_labels = [f"{ticker}: {valor:,.2f}" for ticker, valor in zip(totais_por_ticker.index, totais_por_ticker)]
+    
+    ax.legend(
+        wedges,
+        legend_labels,
+        loc='center left',
+        bbox_to_anchor=(-0.35, 0.5),
+        fontsize=10,
+    )
+    ax.set_title(f'Previsão de Dividendos Anual por Ticker (R$) - {Ano_Atual}', fontsize=16)
 
 def plotar_heatmap(data, ax):
-    sns.heatmap(data.T, annot=True, fmt=".2f", cmap=paleta_heatmap_escolhida, cbar=True, ax=ax, 
-                xticklabels=Meses_Ordenados_Portugues, yticklabels=data.T.index)
-    configurar_grafico(ax, f'Mapa de Calor dos Dividendos Mensais - {Ano_Atual}', None, None)
+    sns.heatmap(data.T, annot=True, linewidth=.5, fmt=".2f", cmap=paleta_heatmap_escolhida, cbar=True,
+                ax=ax, xticklabels=Meses_Ordenados_Portugues, yticklabels=data.T.index,
+                annot_kws={"size": "small"})
+    configurar_grafico(ax, f'Mapa de Calor Mensal de Dividendos - {Ano_Atual}', None, None, grid_visible=False)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0, ha='right')
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
 
 def plotar_todos_graficos(data, estatisticas):
-    fig, axs = plt.subplots(2, 2, figsize=(20, 15))
+    fig, axs = plt.subplots(2, 2, figsize=(25, 15))
     plotar_barras(data, estatisticas, axs[0, 0])
     plotar_boxplot(data, axs[0, 1])
-    plotar_tendencia(data, axs[1, 0])
+    plotar_pizza(data, axs[1, 0])
     plotar_heatmap(data, axs[1, 1])
-    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3, wspace=0.3)
     return fig
 
 # Gera e salva a imagem com todos os gráficos
