@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>B3SA3 - Indicadores Financeiros</title>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 30px;
+      background-color: #f7f9fc;
+      color: #333;
+    }
+
+    h1 {
+      color: #1d3557;
+      margin-bottom: 10px;
+    }
+
+    .updated {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .card h3 {
+      margin-bottom: 15px;
+      color: #457b9d;
+      font-size: 16px;
+    }
+
+    .item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .item.important span:first-child {
+      font-weight: bold;
+      color: #e63946;
+    }
+
+    .item span:last-child {
+      font-weight: 500;
+    }
+
+    #chart_div {
+      width: 100%;
+      height: 400px;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Indicadores - B3SA3</h1>
+  <div class="updated">Atualizado em: 22/04/2025 19:38:09</div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>📌 Dados Gerais</h3>
+      <div class="item"><span>Quantidade</span><span>2</span></div>
+      <div class="item"><span>Valor Atual</span><span>R$ 12,42</span></div>
+      <div class="item"><span>PAYOUT</span><span>43,76%</span></div>
+    </div>
+
+    <div class="card">
+      <h3>📈 Indicadores de Valuation</h3>
+      <div class="item important"><span>P/L</span><span>14,02</span></div>
+      <div class="item important"><span>P/VP</span><span>3,49</span></div>
+      <div class="item"><span>LPA</span><span>0,87</span></div>
+      <div class="item"><span>VPA</span><span>3,49</span></div>
+    </div>
+
+    <div class="card">
+      <h3>🏦 Indicadores de Rentabilidade</h3>
+      <div class="item"><span>ROE</span><span>24,9%</span></div>
+      <div class="item"><span>ROA</span><span>0,1%</span></div>
+      <div class="item"><span>EBITDA</span><span>6,617</span></div>
+    </div>
+
+    <div class="card">
+      <h3>📊 Margens</h3>
+      <div class="item"><span>Margem Bruta</span><span>89,98%</span></div>
+      <div class="item"><span>Margem Líquida</span><span>43,29%</span></div>
+      <div class="item"><span>Margem EBITDA</span><span>62,59%</span></div>
+      <div class="item"><span>Margem Operacional</span><span>57,92%</span></div>
+    </div>
+
+    <div class="card">
+      <h3>💰 Dívidas e Capital</h3>
+      <div class="item"><span>Dívida Bruta</span><span>13,228</span></div>
+      <div class="item"><span>Dívida Líquida</span><span>72,0</span></div>
+      <div class="item"><span>Capital de Giro</span><span>6,027</span></div>
+    </div>
+
+    <div class="card">
+      <h3>🔎 Outros Indicadores</h3>
+      <div class="item"><span>Liquidez Corrente</span><span>1,66</span></div>
+      <div class="item"><span>Liquidez Imediata</span><span>0,18</span></div>
+      <div class="item"><span>Liquidez Seca</span><span>1,66</span></div>
+      <div class="item"><span>Endividamento Geral</span><span>146,03%</span></div>
+    </div>
+
+    <div class="card">
+      <h3>📚 Indicadores Fundamentais</h3>
+      <div class="item"><span>Receita por Ação</span><span>2,01</span></div>
+      <div class="item"><span>EBIT por Ação</span><span>1,15</span></div>
+      <div class="item"><span>Margem EBIT</span><span>57,18%</span></div>
+    </div>
+
+    <div class="card">
+      <h3>📐 Valuation Teórico</h3>
+      <div class="item"><span>Valor Intrínseco (Graham)</span><span>6,04</span></div>
+      <div class="item"><span>Valuation Bazin</span><span>5,44</span></div>
+    </div>
+  </div>
+
+  <!-- Gráfico -->
+  <div id="chart_div"></div>
+
+  <script type="text/javascript">
+    google.charts.load("current", {
+      packages: ["corechart"]
+    });
+    google.charts.setOnLoadCallback(drawChart);
+
+    function drawChart() {
+      const data = google.visualization.arrayToDataTable([
+        ['Tipo de Margem', 'Valor (%)'],
+        ['Margem Bruta', 89.98],
+        ['Margem EBITDA', 62.59],
+        ['Margem Operacional', 57.92],
+        ['Margem Líquida', 43.29]
+      ]);
+
+      const options = {
+        title: 'Distribuição de Margens da B3SA3',
+        pieHole: 0.4,
+        colors: ['#1d3557', '#457b9d', '#a8dadc', '#f1faee'],
+        legend: { position: 'right', textStyle: { fontSize: 12 } }
+      };
+
+      const chart = new google.visualization.PieChart(document.getElementById('chart_div'));
+      chart.draw(data, options);
+    }
+  </script>
+
+</body>
+</html>

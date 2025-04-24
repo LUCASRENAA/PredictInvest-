@@ -38,6 +38,7 @@ def obter_valor_acao_brasileira(ticker):
         acao = yf.Ticker(ticker)
         dados = acao.history(period='1d')
         valor_atual = dados['Close'].iloc[-1]
+        #print(valor_atual)
         return valor_atual
     except Exception as e:
         print(f"Erro ao obter valor da ação {ticker}: {e}")
@@ -112,7 +113,7 @@ def processar_linha(linha, escritor_csv, campos_permitidos):
         quantidade = linha.get('Quantidade', '').strip()
         setor = linha.get('Setor', '').strip()
 
-        if not ticker or not quantidade:
+        if not ticker:
             print(f"Dados inválidos na linha: {linha}")
             return
 
