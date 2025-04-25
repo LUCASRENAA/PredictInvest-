@@ -38,7 +38,7 @@ def obter_valor_acao_brasileira(ticker):
         acao = yf.Ticker(ticker)
         dados = acao.history(period='1d')
         valor_atual = dados['Close'].iloc[-1]
-        #print(valor_atual)
+        print(valor_atual)
         return valor_atual
     except Exception as e:
         print(f"Erro ao obter valor da ação {ticker}: {e}")

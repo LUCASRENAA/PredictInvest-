@@ -118,7 +118,7 @@ def atualizar_indicadores():
     print("gerar aqui")
     import pandas as pd
 
-    subprocess.call(["python", "pegar_indicadores.py", "acoes2.csv", "indicadores2.csv"])
+    #subprocess.call(["python", "pegar_indicadores.py", "acoes2.csv", "indicadores2.csv"])
 
     username = "admin"
     password = "admin"
@@ -137,7 +137,7 @@ def atualizar_indicadores():
         indicadores_df = pd.read_csv("indicadores2.csv")
         # Mapeamento entre os campos do CSV e os campos da API
         mapeamento = {
-            "valor_atual": "valor_atual",
+            "Valor Atual": "valor_atual",
             "PAYOUT": "payout",
             "LPA": "lpa",
             "VPA": "vpa",
@@ -164,7 +164,9 @@ def atualizar_indicadores():
             "Receita líquida por ação": "receita_liquida",
             "EBIT por ação": "ebit_acao",
             "Margem EBIT": "margem_ebit",
-            "ticket_id": "ticket"
+            "ticket_id": "ticket",
+            "bazin": "bazin",
+            "grahan": "grahan"
         }
         # Itera sobre as linhas do DataFrame de indicadores
 
@@ -173,12 +175,12 @@ def atualizar_indicadores():
         from datetime import datetime
         from main import formatar_data
         def calcular_valor_intrinseco(lpa, vpa):
-                    multiplicador = 12
+                    multiplicador = 22
                     valor_intrinseco = math.sqrt(multiplicador * lpa * vpa)
                     return valor_intrinseco
 
         def calcular_bazin(lpa,payout):
-                    return (lpa*payout/100)/0.07       
+                    return (lpa*payout/100)/0.06   
         for index, indicador in indicadores_df.iterrows():
 
 
@@ -197,7 +199,7 @@ def atualizar_indicadores():
                 # Remover o símbolo '%' e substituir a vírgula por um ponto
                 try:
                     string_numero = indicador['PAYOUT'].replace(',', '.')
-                    numero = float(string_numero[:-1]) / 100  # Remove o símbolo '%' e divide por 100
+                    numero = float(string_numero[:-1])   # Remove o símbolo '%' e divide por 100
                     indicador['PAYOUT'] = numero
                 except:
                     pass
