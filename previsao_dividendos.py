@@ -2,6 +2,7 @@ import os
 import csv
 import pandas as pd
 import requests
+from selenium import webdriver
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -12,7 +13,6 @@ import seaborn as sns
 from itertools import cycle
 from main import formatar_data
 import random
-import numpy as np
 
 # Configurações iniciais
 Caminho_Arquivo_Acoes = 'acoes.csv'
@@ -35,16 +35,58 @@ def limpar_e_arredondar(valor):
 
 # Função genérica para obter dividendos
 def obter_dividendos(ticket, quantidade, url, tabela_id=None, headers=None):
+    def processar_tabela(tabela_html):
+        tabela = pd.read_html(StringIO(str(tabela_html)), decimal=',', thousands='.')[0]
+        tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
+        dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (Ano_Atual - 1)].copy()
+        dados_ano_anterior['Valor Total'] = dados_ano_anterior['Valor'].apply(limpar_e_arredondar) * quantidade
+        return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum().reindex(range(1, 13), fill_value=0)
+
     print(f"Obtendo dividendos de: {ticket}")
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    tabela_html = soup.find('table', {'id': tabela_id}) if tabela_id else soup.find('table')
-    tabela = pd.read_html(StringIO(str(tabela_html)), decimal=',', thousands='.')[0]
-    tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
-    
-    dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (Ano_Atual - 1)].copy()
-    dados_ano_anterior['Valor Total'] = dados_ano_anterior['Valor'].apply(limpar_e_arredondar) * quantidade
-    return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum().reindex(range(1, 13), fill_value=0)
+    tabela_html = None
+
+    # Tenta obter os dados via requests
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        tabela_html = soup.find('table', {'id': tabela_id}) if tabela_id else soup.find('table')
+    except requests.exceptions.RequestException as e:
+        print(f"Erro na requisição para {ticket}: {e}")
+
+    # Se a tabela não for encontrada, tenta usar Selenium
+    if tabela_html is None:
+        print(f"Tabela não encontrada para {ticket}. Tentando com Selenium...")
+        tabela_html = obter_tabela_com_selenium(url, tabela_id)
+
+    # Processa a tabela encontrada ou retorna um DataFrame vazio
+    if tabela_html is not None:
+        try:
+            return processar_tabela(tabela_html)
+        except Exception as e:
+            print(f"Erro ao processar os dados para o ticket {ticket}: {e}")
+
+    print(f"Erro: Nenhuma tabela encontrada para o ticket {ticket}.")
+    return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
+
+
+def obter_tabela_com_selenium(url, tabela_id=None):
+    try:
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')  # Executa o navegador em modo headless (sem interface gráfica)
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.199 Safari/537.36')
+
+        with webdriver.Chrome(options=options) as driver:
+            driver.get(url)
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            tabela_html = soup.find('table', {'id': tabela_id}) if tabela_id else soup.find('table')
+            return tabela_html
+
+    except Exception as e:
+        print(f"Erro ao usar Selenium para acessar {url}: {e}")
+        return None
 
 # Funções específicas para ações e FIIs
 def obter_dividendos_acao(ticket, quantidade):
@@ -53,7 +95,7 @@ def obter_dividendos_acao(ticket, quantidade):
 
 def obter_dividendos_fii(ticket, quantidade):
     url = f'https://investidor10.com.br/fiis/{ticket}/'
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.199 Safari/537.36'}
     return obter_dividendos(ticket, quantidade, url, tabela_id='table-dividends-history', headers=headers)
 
 # Função para ler CSV e obter dividendos
@@ -68,7 +110,7 @@ def ler_e_obter_dividendos(caminho_arquivo, obter_dividendos_func):
                 tickers.append(ticket)
                 previsto_mensal_por_ticket.append(obter_dividendos_func(ticket, quantidade))
     except Exception as e:
-        print(f'Erro ao processar {caminho_arquivo}: {e}')
+        print(f"Erro ao processar {caminho_arquivo}: {e}")
     return tickers, previsto_mensal_por_ticket
 
 # Obter dividendos de ações e FIIs
