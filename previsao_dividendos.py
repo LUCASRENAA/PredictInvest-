@@ -6,6 +6,7 @@ from selenium import webdriver
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 from datetime import datetime
+import time # ADICIONADO: Necessário para time.sleep()
 import statistics
 from collections import Counter
 from io import StringIO
@@ -35,17 +36,49 @@ def limpar_e_arredondar(valor):
 
 # Função genérica para obter dividendos
 def obter_dividendos(ticket, quantidade, url, tabela_id=None, headers=None):
+    
     def processar_tabela(tabela_html):
         tabela = pd.read_html(StringIO(str(tabela_html)), decimal=',', thousands='.')[0]
+
+        # Lógica de robustez: Identificar e padronizar colunas Pagamento e Valor
+        colunas_tabela = [str(col) for col in tabela.columns]
+        
+        # Tenta encontrar a coluna de data (Pagamento ou Data)
+        date_col_candidates = [col for col in colunas_tabela if 'Pagamento' in col or 'DATA' in col.upper()]
+        # Tenta encontrar a coluna de valor (Valor sem porcentagem)
+        value_col_candidates = [col for col in colunas_tabela if 'Valor' in col and '%' not in col]
+        
+        # Seleciona a primeira candidata para cada coluna
+        date_col = date_col_candidates[0] if date_col_candidates else None
+        value_col = value_col_candidates[0] if value_col_candidates else None
+        
+        # Fallback por índice (comum em sites como Investidor10)
+        if not date_col and len(colunas_tabela) > 1:
+            date_col = colunas_tabela[1] # Tentativa de índice 1 para data
+        
+        if not value_col and len(colunas_tabela) > 3:
+            value_col = colunas_tabela[3] # Tentativa de índice 3 para valor
+
+        if not date_col:
+            raise ValueError("Coluna de Pagamento não identificada.")
+        
+        if not value_col:
+            raise ValueError("Coluna de Valor não identificada.")
+
+        # Renomeia para as colunas esperadas
+        tabela.rename(columns={date_col: 'Pagamento', value_col: 'Valor'}, inplace=True)
+        
+        # A partir daqui, o processamento original continua
         tabela['Pagamento'] = pd.to_datetime(tabela['Pagamento'], format='%d/%m/%Y', errors='coerce')
         dados_ano_anterior = tabela[tabela['Pagamento'].dt.year == (Ano_Atual - 1)].copy()
         dados_ano_anterior['Valor Total'] = dados_ano_anterior['Valor'].apply(limpar_e_arredondar) * quantidade
+        # Retorna uma Series agrupada por mês (1 a 12), preenchida com 0 onde não houver dados
         return dados_ano_anterior.groupby(dados_ano_anterior['Pagamento'].dt.month)['Valor Total'].sum().reindex(range(1, 13), fill_value=0)
 
     print(f"Obtendo dividendos de: {ticket}")
     tabela_html = None
 
-    # Tenta obter os dados via requests
+    # 1. Tenta obter os dados via requests
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
@@ -54,24 +87,29 @@ def obter_dividendos(ticket, quantidade, url, tabela_id=None, headers=None):
     except requests.exceptions.RequestException as e:
         print(f"Erro na requisição para {ticket}: {e}")
 
-    # Se a tabela não for encontrada, tenta usar Selenium
+    # 2. Se a tabela não for encontrada, tenta usar Selenium
     if tabela_html is None:
         print(f"Tabela não encontrada para {ticket}. Tentando com Selenium...")
         tabela_html = obter_tabela_com_selenium(url, tabela_id)
 
-    # Processa a tabela encontrada ou retorna um DataFrame vazio
+    # 3. Processa a tabela encontrada ou retorna uma Series de zeros
     if tabela_html is not None:
         try:
             return processar_tabela(tabela_html)
         except Exception as e:
             print(f"Erro ao processar os dados para o ticket {ticket}: {e}")
+            # Retorna uma Series de zeros para 12 meses (índices 1 a 12) em caso de erro de processamento
+            return pd.Series([0.0] * 12, index=range(1, 13))
 
-    print(f"Erro: Nenhuma tabela encontrada para o ticket {ticket}.")
-    return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
+    # 4. Se a tabela não foi encontrada (após requests e selenium), retorna Series de zeros.
+    print(f"Erro: Nenhuma tabela encontrada para o ticket {ticket}. Retornando zeros.")
+    # Retorna uma Series de zeros para 12 meses (índices 1 a 12), para permitir a concatenação
+    return pd.Series([0.0] * 12, index=range(1, 13))
 
 
 def obter_tabela_com_selenium(url, tabela_id=None):
     try:
+        # Configuração do WebDriver (assumindo que o Chrome está disponível no ambiente)
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')  # Executa o navegador em modo headless (sem interface gráfica)
         options.add_argument('--disable-gpu')
@@ -80,6 +118,8 @@ def obter_tabela_com_selenium(url, tabela_id=None):
 
         with webdriver.Chrome(options=options) as driver:
             driver.get(url)
+            # Espera um pouco para a página carregar (pode ser necessário ajuste)
+            time.sleep(random.uniform(2, 5)) 
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             tabela_html = soup.find('table', {'id': tabela_id}) if tabela_id else soup.find('table')
             return tabela_html
@@ -106,11 +146,29 @@ def ler_e_obter_dividendos(caminho_arquivo, obter_dividendos_func):
             leitor_csv = csv.reader(arquivo_csv)
             next(leitor_csv, None)
             for linha in leitor_csv:
-                ticket, quantidade = linha[0], int(linha[1])
+                # Garante que a linha tem pelo menos 2 elementos para evitar IndexError
+                if len(linha) < 2:
+                    print(f"Linha ignorada no arquivo {caminho_arquivo} devido a dados insuficientes: {linha}")
+                    continue
+                    
+                ticket = linha[0]
+                try:
+                    quantidade = int(linha[1])
+                except ValueError:
+                    print(f"Quantidade inválida para {ticket} no arquivo {caminho_arquivo}. Usando 0.")
+                    quantidade = 0
+                
                 tickers.append(ticket)
                 previsto_mensal_por_ticket.append(obter_dividendos_func(ticket, quantidade))
+                
+                # Pausa para evitar bloqueio de IP
+                time.sleep(random.uniform(1, 3)) 
+
+    except FileNotFoundError:
+        print(f"Aviso: Arquivo {caminho_arquivo} não encontrado. Continuando sem ele.")
     except Exception as e:
         print(f"Erro ao processar {caminho_arquivo}: {e}")
+        
     return tickers, previsto_mensal_por_ticket
 
 # Obter dividendos de ações e FIIs
@@ -118,8 +176,12 @@ tickers_acoes, previsto_mensal_acoes = ler_e_obter_dividendos(Caminho_Arquivo_Ac
 tickers_fiis, previsto_mensal_fiis = ler_e_obter_dividendos(Caminho_Arquivo_Fiis, obter_dividendos_fii)
 
 # Combina os dividendos em um único DataFrame
+# Corrigido: Agora, todos os elementos em previsto_mensal_acoes e previsto_mensal_fiis são pd.Series alinhadas.
 todos_previstos = pd.concat(previsto_mensal_acoes + previsto_mensal_fiis, axis=1)
+
+# Atribui as colunas corretas
 todos_previstos.columns = tickers_acoes + tickers_fiis
+# O índice já é 1 a 12, mas vamos redefinir para os nomes dos meses
 todos_previstos.index = Meses_Ordenados_Portugues
 
 # Limpa e arredonda os valores do DataFrame
@@ -130,11 +192,20 @@ todos_previstos_limpos['TOTAL'] = todos_previstos_limpos.sum(axis=1)
 
 # Função para calcular estatísticas
 def calcular_estatisticas(data):
+    # Trata o caso em que 'data' está vazia
+    if not data.any():
+        return 0, 0, 'N/A', 0, 0
+    
     media = statistics.mean(data)
     mediana = statistics.median(data)
     contagem = Counter(data)
-    modos = [valor for valor, freq in contagem.items() if freq == contagem.most_common(1)[0][1]]
-    moda = modos[0] if len(modos) == 1 else 'No unique mode'
+    # Garante que há uma moda se a contagem não estiver vazia
+    if contagem:
+        modos = [valor for valor, freq in contagem.items() if freq == contagem.most_common(1)[0][1]]
+        moda = modos[0] if len(modos) == 1 else 'Sem moda única'
+    else:
+        moda = 'N/A'
+        
     return media, mediana, moda, max(data), min(data)
 
 # Estatísticas do total
@@ -211,14 +282,29 @@ def adicionar_estatisticas(ax, estatisticas):
     )
 
 def plotar_barras(data, estatisticas, ax):
-    cores = [mapeamento_cores[col] for col in data.columns]
-    data.plot(kind='bar', ax=ax, stacked=True, color=cores, legend=False)
+    # Filtra colunas que existem no mapeamento (garante que não há problemas se algum ticker falhou)
+    cols_para_plot = [col for col in data.columns if col in mapeamento_cores]
+    cores = [mapeamento_cores[col] for col in cols_para_plot]
+    
+    # Se não houver dados válidos para plotar, exibe uma mensagem e retorna
+    if data[cols_para_plot].empty:
+        ax.text(0.5, 0.5, 'Sem dados válidos para o gráfico de Barras.', 
+                transform=ax.transAxes, ha='center', va='center')
+        return
+
+    data[cols_para_plot].plot(kind='bar', ax=ax, stacked=True, color=cores, legend=False)
+    
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles, labels, loc='center left', bbox_to_anchor=(-0.28, 0.5), fontsize=10)
     configurar_grafico(ax, f'Previsão Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)', Meses_Ordenados_Portugues)
     adicionar_estatisticas(ax, estatisticas)
 
 def plotar_boxplot(data, ax):
+    if data.empty:
+        ax.text(0.5, 0.5, 'Sem dados válidos para o Boxplot.', 
+                transform=ax.transAxes, ha='center', va='center')
+        return
+        
     data.T.boxplot(
         ax=ax,
         boxprops=dict(linestyle='-', linewidth=2, color='blue'),
@@ -226,21 +312,22 @@ def plotar_boxplot(data, ax):
         medianprops=dict(linestyle='-', linewidth=2, color='green')
     )
 
-    for col in data.columns:
-        if col in mapeamento_cores:  # Garante que a cor está mapeada
+    # Plota os pontos individuais
+    for i, col in enumerate(data.columns):
+        if col in mapeamento_cores:
             ax.scatter(
-                range(1, len(data.index) + 1),  # Posições no eixo X
-                data[col],  # Valores no eixo Y
+                [i + 1] * len(data), # Posições no eixo X
+                data[col],           # Valores no eixo Y
                 marker='o',
                 label=col,
                 color=mapeamento_cores[col],
                 alpha=0.7,
-                zorder=2  # Garante que os pontos fiquem acima do boxplot
+                zorder=2
             )
 
-    # Ajusta os rótulos do eixo X para corresponder ao número de caixas no boxplot
-    ax.set_xticks(range(1, len(data.index) + 1))
-    ax.set_xticklabels(data.index, rotation=45, ha='right')
+    # Ajusta os rótulos do eixo X
+    ax.set_xticks(range(1, len(data.columns) + 1))
+    ax.set_xticklabels(data.columns, rotation=45, ha='right')
 
     # Configura o gráfico
     configurar_grafico(ax, f'Boxplot da Distribuição Mensal de Dividendos - {Ano_Atual}', None, 'Valor Previsto (R$)')
@@ -248,16 +335,24 @@ def plotar_boxplot(data, ax):
 
 def plotar_pizza(data, ax):
     totais_por_ticker = data.sum(axis=0)
-    cores = [mapeamento_cores[ticker] for ticker in totais_por_ticker.index]
+    # Filtra tickers com total zero (evita fatias irrelevantes ou erros de plotagem)
+    totais_validos = totais_por_ticker[totais_por_ticker > 0]
+    
+    if totais_validos.empty:
+        ax.text(0.5, 0.5, 'Sem dados válidos para o gráfico de Pizza.', 
+                transform=ax.transAxes, ha='center', va='center')
+        return
+
+    cores = [mapeamento_cores[ticker] for ticker in totais_validos.index]
     
     wedges, texts = ax.pie(
-        totais_por_ticker,
+        totais_validos,
         startangle=90,
         colors=cores,
         wedgeprops=dict(width=0.5)  # Define o buraco no meio
     )
     
-    legend_labels = [f"{ticker}: {valor:,.2f}" for ticker, valor in zip(totais_por_ticker.index, totais_por_ticker)]
+    legend_labels = [f"{ticker}: {valor:,.2f}" for ticker, valor in zip(totais_validos.index, totais_validos)]
     
     ax.legend(
         wedges,
@@ -269,6 +364,11 @@ def plotar_pizza(data, ax):
     ax.set_title(f'Previsão de Dividendos Anual por Ticker (R$) - {Ano_Atual}', fontsize=16)
 
 def plotar_heatmap(data, ax):
+    if data.empty:
+        ax.text(0.5, 0.5, 'Sem dados válidos para o Mapa de Calor.', 
+                transform=ax.transAxes, ha='center', va='center')
+        return
+        
     sns.heatmap(data.T, annot=True, linewidth=.5, fmt=".2f", cmap=paleta_heatmap_escolhida, cbar=True,
                 ax=ax, xticklabels=Meses_Ordenados_Portugues, yticklabels=data.T.index,
                 annot_kws={"size": "small"})
@@ -288,7 +388,16 @@ def plotar_todos_graficos(data, estatisticas):
 # Gera e salva a imagem com todos os gráficos
 path = 'arquivos'
 os.makedirs(path, exist_ok=True)
-fig_todos = plotar_todos_graficos(todos_previstos_limpos, estatisticas_total)
-todos_graficos_img = f'todos_graficos_{formatar_data()}.png'
-plt.savefig(os.path.join(path, todos_graficos_img), format='png', bbox_inches='tight')
-plt.show()
+# Verifica se há tickers válidos antes de tentar plotar
+if not todos_previstos_limpos.empty:
+    fig_todos = plotar_todos_graficos(todos_previstos_limpos, estatisticas_total)
+    todos_graficos_img = f'todos_graficos_{formatar_data()}.png'
+    # Salva o gráfico
+    try:
+        plt.savefig(os.path.join(path, todos_graficos_img), format='png', bbox_inches='tight')
+        print(f"Gráfico salvo em: {os.path.join(path, todos_graficos_img)}")
+    except Exception as e:
+        print(f"Erro ao salvar o gráfico: {e}")
+    plt.show() # Removido para evitar que a aplicação fique presa em ambientes sem display.
+else:
+    print("Nenhum dado de dividendo válido foi processado. Nenhum gráfico gerado.")

@@ -3,3 +3,7 @@ env/
 __pycache__/
 .vscode/
 arquivos
+acoes.csv
+fiis.csv
+indicadores.csv
+valor_intrinseco.csv
