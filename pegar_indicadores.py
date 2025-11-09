@@ -3,78 +3,96 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import yfinance as yf
-from yfinance.exceptions import YFRateLimitError # Importa a exceção específica
+from yfinance.exceptions import YFRateLimitError 
 import time
 import random
+import re 
+import math # Adicionado para usar a função sqrt (raiz quadrada)
 
-# A biblioteca 'requests' e 'BeautifulSoup' são mantidas pois são usadas
-# na função 'obter_indicadores' para web scraping de outro site.
-# O 're' não é usado, mas foi mantido na lista de imports do seu código original.
-# O 'time' e 'random' são usados para o delay entre as requisições.
+# --- Funções de Leitura e Extração ---
 
-def extrair_payout(ticker_simbolo):
+def ler_payout_csv(filename='payout.csv'):
+    """Lê o arquivo payout.csv e retorna um dicionário {Ticker: Payout_Float}."""
+    payouts = {}
+    try:
+        with open(filename, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                ticker = row.get('Ticker', '').strip()
+                # Substitui vírgula por ponto e tenta converter para float (porcentagem)
+                payout_str = row.get('Payout', '').strip().replace(',', '.')
+                try:
+                    payouts[ticker] = float(payout_str)
+                except ValueError:
+                    print(f"Aviso: Valor de Payout inválido para {ticker} no CSV.")
+    except FileNotFoundError:
+        print(f"Aviso: Arquivo '{filename}' não encontrado.")
+    return payouts
+
+
+def extrair_payout_yf(ticker):
     """
-    💰 Extrai o Payout Ratio (em porcentagem) de uma ação usando a biblioteca yfinance.
-
-    Args:
-        ticker_simbolo (str): O código do ticker da ação (ex: 'PETR4.SA').
-
-    Returns:
-        float or str: O Payout Ratio em porcentagem (ex: 55.23) ou uma 
-                      mensagem de erro se não for encontrado.
+    💰 Extrai o Payout Ratio (em porcentagem) usando a biblioteca yfinance.
+    Adiciona '.SA' automaticamente.
     """
+    acao = yf.Ticker(ticker + '.SA')
     
-    # 1. Cria um objeto Ticker
-    acao = yf.Ticker(ticker_simbolo)
-    
-    # 2. Busca as informações da empresa (dados_info é um dicionário)
     try:
         dados_info = acao.info
-    except YFRateLimitError as e:
-        # Se atingir o limite de taxa, retransmite a exceção para parar o processamento
-        print(f"ERRO: Limite de taxa (Rate Limit) atingido em extrair_payout para {ticker_simbolo}.")
-        raise e
+    except YFRateLimitError:
+        # Re-raise para que processar_linha possa capturar e iniciar o fallback
+        raise 
     except Exception as e:
-        return f"Erro ao acessar dados para {ticker_simbolo}: {e}"
+        # Se for qualquer outro erro, retorna a mensagem
+        return f"Erro YF: {e}"
 
-    # 3. Tenta extrair o Payout Ratio do dicionário
     if 'payoutRatio' in dados_info and dados_info['payoutRatio'] is not None:
-        payout_ratio = dados_info['payoutRatio']
-        
-        # Converte para porcentagem e formata
-        payout_porcentagem = payout_ratio * 100
-        return round(payout_porcentagem, 2)
-    else:
-        # Retorna uma mensagem clara se o dado não estiver disponível
-        return "Não disponível"
+        payout_ratio = dados_info['payoutRatio'] * 100
+        return round(payout_ratio, 2)
+    
+    return "Não disponível"
 
 
 def obter_valor_acao_brasileira(ticker):
-    """Obtém o valor atual de uma ação brasileira usando o Yahoo Finance."""
+    """
+    Obtém o valor atual de uma ação brasileira usando Web Scraping do Status Invest (sem yfinance).
+    """
+    url = f"https://statusinvest.com.br/acoes/{ticker}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
     try:
-        ticker_completo = ticker + '.SA'
-        acao = yf.Ticker(ticker_completo)
-        dados = acao.history(period='1d')
+        print(f"Buscando Valor Atual via Web Scraping (Status Invest) para {ticker}...")
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Se os dados estiverem vazios, a ação não foi encontrada ou não tem histórico recente
-        if dados.empty:
-            raise ValueError(f"Dados vazios para {ticker_completo}. Ticker pode ser inválido.")
+        # O preço geralmente está dentro de um <strong> com a classe 'value' na div principal
+        valor_tag = soup.find('strong', {'class': 'value'})
+        
+        if valor_tag:
+            valor_texto = valor_tag.text.strip()
+            # Limpa o texto (remove R$, espaços, converte vírgula para ponto)
+            valor_limpo = valor_texto.replace('R$', '').replace('.', '').replace(',', '.').strip()
             
-        valor_atual = dados['Close'].iloc[-1]
-        return valor_atual
-    except YFRateLimitError as e:
-        # Se atingir o limite de taxa, retransmite a exceção para parar o processamento
-        print(f"ERRO: Limite de taxa (Rate Limit) atingido em obter_valor_acao_brasileira para {ticker}.")
-        raise e
+            # Tenta converter para float
+            return float(valor_limpo)
+        
+        print(f"AVISO: Tag de valor não encontrada no Status Invest para {ticker}.")
+        return 0.0 # Retorna 0.0 se não encontrar a tag
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Erro de Web Scraping (Status Invest) para {ticker}: {e}")
+        return 0.0 # Retorna 0.0 em caso de erro de conexão/HTTP
     except Exception as e:
-        print(f"Erro ao obter valor da ação {ticker}: {e}")
-        return None
+        print(f"Erro inesperado ao processar o valor de {ticker}: {e}")
+        return 0.0 # Retorna 0.0 em caso de erro de processamento
 
 
 def obter_indicadores(ticket, quantidade):
     """Obtém indicadores financeiros de uma ação a partir de uma página web (Web Scraping)."""
-    # Esta função usa requests e BeautifulSoup, mantida do seu código original
-    # pois busca dados de outro site.
+    # Esta função é mantida para web scraping do outro site (dadosdemercado.com.br)
     url = f'https://www.dadosdemercado.com.br/acoes/{ticket}'
     indicadores = {}
 
@@ -91,24 +109,22 @@ def obter_indicadores(ticket, quantidade):
                 valor = tds[1].text.strip()
                 valor_convertido = converter_valor_para_float(valor)
                 if valor_convertido is not None:
+                    # Usamos o nome do campo como chave do dicionário
                     indicadores[indicador] = valor_convertido
     except requests.exceptions.RequestException as e:
         print(f"Erro ao acessar {url}: {e}")
-    except Exception as e:
-        print(f"Erro no scraping de indicadores para {ticket}: {e}")
 
     return indicadores
 
 
 def converter_valor_para_float(valor):
     """Converte um valor textual para float, tratando vírgulas e caracteres não numéricos."""
-    # Tratamento de valores: remove espaços, substitui vírgula por ponto para float
     valor_limpo = valor.replace(' ', '').replace('.', '').replace(',', '.')
     
-    # Remove qualquer caractere que não seja número ou ponto decimal
+    # Remove caracteres que não sejam dígitos ou ponto
     valor_limpo = ''.join(c for c in valor_limpo if c.isdigit() or c == '.')
 
-    # Remove pontos extras, mantendo apenas o último para o float
+    # Garante que só há um ponto decimal para conversão
     if valor_limpo.count('.') > 1:
         partes = valor_limpo.split('.')
         valor_limpo = ''.join(partes[:-1]) + '.' + partes[-1]
@@ -118,6 +134,39 @@ def converter_valor_para_float(valor):
     except ValueError:
         return None
 
+# --- Funções de Cálculo de Valor Intrínseco ---
+
+def calcular_graham(lpa, vpa):
+    """Calcula o Valor Intrínseco de Graham: V = sqrt(22.5 * LPA * VPA)"""
+    # Constante 22.5: (P/L máximo de 15) * (P/VP máximo de 1.5)
+    if lpa is not None and vpa is not None and lpa > 0 and vpa > 0:
+        try:
+            return round(math.sqrt(22.5 * lpa * vpa), 2)
+        except Exception:
+            return None
+    return None
+
+def calcular_bazin(lpa, payout_percentual):
+    """
+    Calcula o Preço Justo de Bazin: Preço Justo = DPA / Taxa Desejada (assumimos 6% ou 0.06).
+    DPA é aproximado: LPA * (Payout / 100).
+    """
+    taxa_desejada = 0.06 # 6%
+    
+    if lpa is not None and payout_percentual is not None and lpa > 0 and payout_percentual > 0:
+        try:
+            # 1. Calcular Dividendo por Ação (DPA)
+            dpa = lpa * (payout_percentual / 100)
+            
+            # 2. Calcular Preço Justo de Bazin
+            preco_justo = dpa / taxa_desejada
+            return round(preco_justo, 2)
+        except Exception:
+            return None
+    return None
+
+
+# --- Funções de Processamento Principal ---
 
 def processar_acoes():
     """Processa as ações do arquivo acoes.csv e salva os indicadores no arquivo indicadores.csv."""
@@ -126,10 +175,14 @@ def processar_acoes():
         'P/VP', 'P/SR', 'ROE', 'ROA', 'EBITDA', 'Margem bruta', 'Margem líquida', 'Margem EBITDA',
         'Margem operacional', 'P/CF', 'Liquidez corrente', 'Liquidez imediata', 'Liquidez seca', 'Giro do ativo',
         'Endividamento geral', 'Ativo por ação', 'Dívida bruta', 'Dívida líquida', 'Capital de giro',
-        'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT'
+        'Receita líquida por ação', 'EBIT por ação', 'Margem EBIT',
+        'Valor intrinseco Graham', 'Bazin' # NOVOS CAMPOS ADICIONADOS
     ]
 
     try:
+        # Carrega os payouts do arquivo CSV antes de começar o loop
+        payouts_csv = ler_payout_csv()
+
         with open('acoes.csv', newline='', encoding='utf-8') as arquivo_acoes, \
              open('indicadores.csv', mode='w', newline='', encoding='utf-8') as arquivo_indicadores:
 
@@ -138,85 +191,102 @@ def processar_acoes():
             escritor_csv.writeheader()
 
             for linha in leitor_csv:
-                # O processamento da linha está em um try-except separado
-                # para que o Rate Limit Error possa ser retransmitido (re-raised)
-                processar_linha(linha, escritor_csv, campos_permitidos)
+                processar_linha(linha, escritor_csv, campos_permitidos, payouts_csv)
 
-    except YFRateLimitError:
-        # 🛑 Captura o erro específico e interrompe o programa aqui
-        print("\n=======================================================")
-        print("🛑 EXECUÇÃO INTERROMPIDA: Limite de taxa (Rate Limit) do Yahoo Finance atingido.")
-        print("Tente novamente mais tarde para continuar o processamento.")
-        print("=======================================================")
     except FileNotFoundError as e:
         print(f"Erro: Arquivo não encontrado - {e}")
     except Exception as e:
         print(f"Erro inesperado: {e}")
 
 
-def processar_linha(linha, escritor_csv, campos_permitidos):
-    """Processa uma linha do arquivo CSV e escreve os indicadores no arquivo de saída."""
+def processar_linha(linha, escritor_csv, campos_permitidos, payouts_csv):
+    """
+    Processa uma linha do arquivo CSV, aplicando a lógica de fallback do Payout.
+    """
+    ticker = linha.get('Ticker', '').strip()
+    quantidade = linha.get('Quantidade', '').strip()
+    setor = linha.get('Setor', '').strip()
+    valor_acao_brasil = None
+    payout = None
+
+    if not ticker or not quantidade:
+        print(f"Dados inválidos na linha: {linha}")
+        return
+
+    print(f"\n--- Processando ação: {ticker} ---")
+    
+    # 3. Obtém os Indicadores (Web Scraping - dadosdemercado.com.br)
+    indicadores = obter_indicadores(ticker, quantidade)
+
+    # 1. Tenta obter o Valor Atual da Ação (via Web Scraping - Status Invest)
+    # Não levanta YFRateLimitError, pois não usa yfinance.
+    valor_acao_brasil = obter_valor_acao_brasileira(ticker)
+    # Se a função retornar 0.0, é considerado um erro/falha na obtenção do valor.
+
+    # 2. Tenta obter o Payout (via yfinance com fallback)
     try:
-        ticker = linha.get('Ticker', '').strip()
-        quantidade = linha.get('Quantidade', '').strip()
-        setor = linha.get('Setor', '').strip()
-
-        if not ticker or not quantidade:
-            print(f"Dados inválidos na linha: {linha}")
-            return
-
-        print(f"Processando ação: {ticker}")
-
-        # Obtém os indicadores (pode gerar YFRateLimitError)
-        indicadores = obter_indicadores(ticker, quantidade)
-        valor_acao_brasil = obter_valor_acao_brasileira(ticker)
-        payout = extrair_payout(ticker)
-
-        # Aguarda um tempo aleatório entre 5 e 10 segundos
-        tempo_aleatorio = random.uniform(5, 10)
-        time.sleep(tempo_aleatorio)
-        print(f"Aguardei {tempo_aleatorio:.2f} segundos na ação {ticker}.")
-
-        # Monta o dicionário com os dados
-        linha_indicadores = {
-            'Ticker': ticker,
-            'Quantidade': quantidade,
-            'Setor': setor,
-            'Data de atualização': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'Valor Atual': valor_acao_brasil,
-            'PAYOUT': payout
-        }
-        linha_indicadores.update(indicadores)
-
-        # Filtra apenas as chaves permitidas
-        linha_filtrada = {k: v for k, v in linha_indicadores.items() if k in campos_permitidos}
-
-        # Escreve no arquivo de saída
-        escritor_csv.writerow(linha_filtrada)
-
-    except YFRateLimitError as e:
-        # Retransmite o erro de Rate Limit para que processar_acoes possa capturá-lo
-        raise e
+        payout = extrair_payout_yf(ticker)
+        print(f"✅ PAYOUT obtido via yfinance: {payout}%")
+    except YFRateLimitError:
+        
+        # --- Lógica de Fallback ---
+        print(f"\n🛑 RATE LIMIT YF ATINGIDO ao tentar obter o Payout para {ticker}. Iniciando Fallback...")
+        
+        # Fallback 1: Verificar payout.csv
+        if ticker in payouts_csv:
+            payout = payouts_csv[ticker]
+            print(f"✅ PAYOUT de {ticker} obtido de 'payout.csv': {payout}%.")
+        else:
+            # Fallback 2: Solicitar input manual
+            print(f"❌ Payout de {ticker} não encontrado em 'payout.csv'.")
+            while True:
+                payout_input = input(f"Por favor, digite o Payout Ratio de {ticker} (em %): ").replace(',', '.')
+                try:
+                    payout = round(float(payout_input), 2)
+                    print(f"👍 Payout de {ticker} definido manualmente para {payout}%.")
+                    break
+                except ValueError:
+                    print("Entrada inválida. Por favor, digite apenas um número (ex: 21.14).")
+        # --- Fim da Lógica de Fallback ---
     except Exception as e:
-        print(f"Erro ao processar a linha {linha}: {e}")
+        payout = f"Erro Payout: {e}"
+
+
+    # 4. Cálculo dos Valores Intrínsecos
+    lpa = indicadores.get('LPA')
+    vpa = indicadores.get('VPA')
+    
+    graham = calcular_graham(lpa, vpa)
+    # Usa o valor de payout obtido (de yf, csv ou input manual)
+    bazin = calcular_bazin(lpa, payout if isinstance(payout, (int, float)) else None)
+
+    # 5. Aguarda um tempo aleatório entre 5 e 10 segundos
+    tempo_aleatorio = random.uniform(5, 10)
+    time.sleep(tempo_aleatorio)
+    print(f"Aguardei {tempo_aleatorio:.2f} segundos antes de continuar.")
+
+    # 6. Monta o dicionário e escreve
+    linha_indicadores = {
+        'Ticker': ticker,
+        'Quantidade': quantidade,
+        'Setor': setor,
+        'Data de atualização': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'Valor Atual': valor_acao_brasil,
+        'PAYOUT': payout,
+        'Valor intrinseco Graham': graham, # Novo campo
+        'Bazin': bazin                     # Novo campo
+    }
+    # Atualiza o dicionário com os indicadores raspados (LPA, VPA, P/L, etc.)
+    linha_indicadores.update(indicadores)
+
+    # Filtra apenas as chaves permitidas
+    linha_filtrada = {k: v for k, v in linha_indicadores.items() if k in campos_permitidos}
+
+    # Escreve no arquivo de saída
+    escritor_csv.writerow(linha_filtrada)
 
 
 if __name__ == '__main__':
-    # Simula a criação de um arquivo acoes.csv para o código ser executável
-    # Em um ambiente real, você deve ter seu próprio arquivo.
-    acoes_mock = [
-        {'Ticker': 'PETR4', 'Quantidade': '100', 'Setor': 'Petróleo'},
-        {'Ticker': 'VALE3', 'Quantidade': '50', 'Setor': 'Mineração'},
-        {'Ticker': 'ITUB4', 'Quantidade': '200', 'Setor': 'Bancos'},
-    ]
-    with open('acoes.csv', mode='w', newline='', encoding='utf-8') as f:
-        fieldnames = ['Ticker', 'Quantidade', 'Setor']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(acoes_mock)
-        
-    print("Arquivo 'acoes.csv' mock criado. Iniciando processamento...")
-    
     processar_acoes()
     
-    print("Processamento concluído ou interrompido.")
+    print("\nProcessamento concluído.")
