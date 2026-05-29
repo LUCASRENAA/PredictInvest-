@@ -40,8 +40,13 @@ def configurar_grafico(
 ) -> None:
     """Configura os elementos comuns de um gráfico Mpl Axes."""
     ax.set_title(titulo, pad=15, fontsize=14, fontweight="bold")
-    ax.set_xlabel(xlabel, fontweight="bold")
+
+    # Só adiciona o xlabel se ele não for vazio
+    if xlabel:
+        ax.set_xlabel(xlabel, fontweight="bold")
+
     ax.set_ylabel(ylabel, fontweight="bold")
+
     if xticks is not None:
         ax.set_xticks(range(len(xticks)))
         ax.set_xticklabels(xticks, rotation=rotation, ha="right")
@@ -52,28 +57,71 @@ def configurar_grafico(
 def adicionar_estatisticas(
     ax: plt.Axes, estatisticas: Tuple[float, float, Any, float, float]
 ) -> None:
-    """Fixa o painel de estatísticas textuais de forma flutuante para não sobrepor o gráfico."""
+    """Posiciona o painel no canto superior com mais espaço vazio acima das barras."""
     media, mediana, moda, maximo, minimo = estatisticas
     texto_estatisticas = (
-        f"Estatísticas Gerais (R$):\n"
-        f"Média Mensal: {media:.2f}\n"
-        f"Mediana: {mediana:.2f}\n"
-        f"Moda: {moda if isinstance(moda, str) else f'{moda:.2f}'}\n"
-        f"Máximo: {maximo:.2f}\n"
-        f"Mínimo: {minimo:.2f}"
+        r"$\bf{Média:}$" + f" {media:.2f}\n"
+        r"$\bf{Mediana:}$" + f" {mediana:.2f}\n"
+        r"$\bf{Moda:}$" + f" {moda if isinstance(moda, str) else f'{moda:.2f}'}\n"
+        r"$\bf{Máximo:}$" + f" {maximo:.2f}\n"
+        r"$\bf{Mínimo:}$" + f" {minimo:.2f}"
     )
-    ax.text(
-        0.02,
-        0.95,
-        texto_estatisticas,
-        transform=ax.transAxes,
-        fontsize=11,
-        verticalalignment="top",
-        bbox=dict(
-            boxstyle="round,pad=0.5",
-            edgecolor="#cccccc",
-            facecolor="#ffffff",
-            alpha=0.9,
+
+    patches = ax.patches
+    _, ymax = ax.get_ylim()
+
+    if not patches:
+        x_pos, y_pos, ha, va = 0.02, 0.95, "left", "top"
+    else:
+        xlim = ax.get_xlim()
+        x_range = xlim[1] - xlim[0]
+
+        # Divide em terço esquerdo, terço central e terço direito
+        x_terco_esq = xlim[0] + x_range * 0.33
+        x_terco_dir = xlim[0] + x_range * 0.67
+
+        # Soma alturas empilhadas por posição X em cada região
+        alturas: Dict[float, float] = {}
+        for patch in patches:
+            bx = patch.get_x() + patch.get_width() / 2
+            h = patch.get_height()
+            if h > 0:
+                alturas[bx] = alturas.get(bx, 0) + h
+
+        def max_altura_regiao(x_ini: float, x_fim: float) -> float:
+            vals = [h for bx, h in alturas.items() if x_ini <= bx <= x_fim]
+            return max(vals, default=0)
+
+        max_esq = max_altura_regiao(xlim[0], x_terco_esq)
+        max_dir = max_altura_regiao(x_terco_dir, xlim[1])
+
+        # Escolhe o canto superior com mais espaço acima das barras
+        if (ymax - max_esq) >= (ymax - max_dir):
+            x_pos, ha = 0.02, "left"
+        else:
+            x_pos, ha = 0.98, "right"
+
+        max_escolhido = max_esq if ha == "left" else max_dir
+        if max_escolhido / ymax > 0.90:
+            y_pos, va = 0.05, "bottom"
+        else:
+            y_pos, va = 0.95, "top"
+
+    (
+        ax.text(
+            x_pos,
+            y_pos,
+            texto_estatisticas,
+            transform=ax.transAxes,
+            fontsize=11,
+            horizontalalignment=ha,
+            verticalalignment=va,
+            bbox=dict(
+                boxstyle="round,pad=0.5",
+                edgecolor="#cccccc",
+                facecolor="#ffffff",
+                alpha=0.9,
+            ),
         ),
     )
 
@@ -85,19 +133,22 @@ def plotar_todos_graficos(
     mapeamento_cores: Dict[str, Any],
     paleta_heatmap: str,
 ) -> plt.Figure:
-    """Renderiza o grid de múltiplos subplots compilando dividendos e retornos em figura de alta dimensão."""
+    """Renderiza a grade 2x2 de subplots compilando dividendos e retornos em figura de alta dimensão."""
     if data.empty:
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.text(0.5, 0.5, "Nenhum dado para exibir", ha="center", va="center")
         return fig
 
-    fig = plt.figure(figsize=(24, 32))
-    gs = fig.add_gridspec(
-        4, 2, height_ratios=[1.5, 1.5, 1.2, 1.2], wspace=0.25, hspace=0.4
-    )
+    # Configuração da figura para o layout 2x2
+    fig = plt.figure(figsize=(24, 16))
+    gs = fig.add_gridspec(2, 2, wspace=0.15, hspace=0.4)
 
-    # Gráfico 1: Barras empilhadas
-    ax1 = fig.add_subplot(gs[0, :])
+    ncols_legenda = min(6, len(data.columns))
+
+    # ==========================================================
+    # Gráfico 1: Barras empilhadas (Topo Esquerda)
+    # ==========================================================
+    ax1 = fig.add_subplot(gs[0, 0])
     data.plot(
         kind="bar",
         stacked=True,
@@ -107,24 +158,24 @@ def plotar_todos_graficos(
     )
     configurar_grafico(
         ax1,
-        f"Previsão de Dividendos Mensais para {ano_atual}",
-        "Mês",
+        f"Previsão de Dividendos Mensais - {ano_atual}",
+        "",
         "Valor (R$)",
         xticks=data.index,
-        rotation=0,
+        rotation=45,
     )
     adicionar_estatisticas(ax1, estatisticas)
-    ncols = min(10, len(data.columns))
     ax1.legend(
-        title="Tickers",
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.1),
-        ncol=ncols,
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=ncols_legenda,
         frameon=False,
     )
 
-    # Gráfico 2: Linhas para cada ticker
-    ax2 = fig.add_subplot(gs[1, :])
+    # ==========================================================
+    # Gráfico 2: Linhas para cada ticker (Topo Direita)
+    # ==========================================================
+    ax2 = fig.add_subplot(gs[0, 1])
     for ticker in data.columns:
         ax2.plot(
             data.index,
@@ -138,42 +189,22 @@ def plotar_todos_graficos(
     configurar_grafico(
         ax2,
         f"Evolução Mensal de Dividendos Acumulados - {ano_atual}",
-        "Mês",
+        "",
         "Valor (R$)",
+        xticks=data.index,
+        rotation=45,
     )
     ax2.legend(
-        title="Tickers",
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
-        ncol=ncols,
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=ncols_legenda,
         frameon=False,
     )
 
-    # Gráfico 3: Matriz de Calor (Heatmap)
-    ax3 = fig.add_subplot(gs[2, 0])
-    sns.heatmap(
-        data.T,
-        cmap=paleta_heatmap,
-        annot=True,
-        fmt=".1f",
-        linewidths=0.5,
-        ax=ax3,
-        cbar_kws={"label": "Valor (R$)"},
-        annot_kws={"size": 9},
-    )
-    ax3.set_title(
-        f"Mapa de Calor dos Dividendos - {ano_atual}",
-        pad=15,
-        fontsize=14,
-        fontweight="bold",
-    )
-    ax3.set_xlabel("Mês", fontweight="bold")
-    ax3.set_ylabel("Ticker", fontweight="bold")
-    ax3.tick_params(axis="y", rotation=0)
-    ax3.tick_params(axis="x", rotation=45)
-
-    # Gráfico 4: Proporção de Dividendos (Donut Chart com Agrupamento e Legenda Lateral)
-    ax4 = fig.add_subplot(gs[2, 1])
+    # ==========================================================
+    # Gráfico 3: Proporção de Dividendos - Donut (Baixo Esquerda)
+    # ==========================================================
+    ax4 = fig.add_subplot(gs[1, 0])
     soma_por_ticker = data.sum().sort_values(ascending=False)
     soma_por_ticker = soma_por_ticker[soma_por_ticker > 0]
 
@@ -192,82 +223,77 @@ def plotar_todos_graficos(
             mapeamento_cores.get(ticker, "#95a5a6") for ticker in soma_por_ticker.index
         ]
 
-        wedges, _, autotexts = ax4.pie(
+        wedges, texts = ax4.pie(
             soma_por_ticker,
-            autopct=lambda p: f"{p:.1f}%" if p > 3 else "",
-            pctdistance=0.75,
             colors=cores_pizza,
             startangle=140,
             wedgeprops={
                 "edgecolor": "white",
                 "linewidth": 2,
             },
-            textprops={"fontsize": 11, "fontweight": "bold"},
         )
 
         centro_branco = plt.Circle((0, 0), 0.50, fc="white")
         ax4.add_artist(centro_branco)
 
-        for autotext in autotexts:
-            autotext.set_color("white")
-            autotext.set_fontsize(10)
-
-        # Monta a lista de textos para a legenda combinando Ticker, Valor e Porcentagem
+        # Monta a lista de textos para a legenda
         total_dividendos = soma_por_ticker.sum()
         legend_labels = []
+
         for ticker, valor in soma_por_ticker.items():
             pct = (valor / total_dividendos) * 100
             valor_fmt = (
-                f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
             )
             legend_labels.append(f"{ticker}: R$ {valor_fmt} ({pct:.1f}%)")
 
-        # Adiciona a legenda customizada ao lado direito do gráfico
         ax4.legend(
             wedges,
             legend_labels,
-            title="Distribuição e Valores Estimados",
             loc="center left",
-            bbox_to_anchor=(0.95, 0.5),
+            bbox_to_anchor=(-0.1, 0.5),
             frameon=False,
             fontsize=11,
             title_fontsize=12,
         )
 
-        ax4.set_title("Proporção de Dividendos", pad=20, fontsize=14, fontweight="bold")
+        ax4.set_title(
+            f"Proporção de Dividendos - {ano_atual}",
+            pad=20,
+            fontsize=14,
+            fontweight="bold",
+        )
         ax4.axis("equal")
 
-    # Gráfico 5: Total Mensal Consolidado (Bar Chart)
-    ax5 = fig.add_subplot(gs[3, :])
-    cores_mensais = sns.color_palette(paleta_heatmap, n_colors=12)
-    total_mensal = data.sum(axis=1)
-    bars = total_mensal.plot(
-        kind="bar", color=cores_mensais, edgecolor="black", ax=ax5, width=0.7
+    # ==========================================================
+    # Gráfico 4: Mapa de Calor / Heatmap (Baixo Direita)
+    # ==========================================================
+    ax3 = fig.add_subplot(gs[1, 1])
+    sns.heatmap(
+        data.T,
+        cmap=paleta_heatmap,
+        annot=True,
+        fmt=".0f",
+        linewidths=0.5,
+        ax=ax3,
+        cbar_kws={"label": "Valor (R$)", "drawedges": False},
+        annot_kws={"size": 9},
     )
-    configurar_grafico(
-        ax5,
-        f"Total Consolidado Mensal Previsto - {ano_atual}",
-        "Mês",
-        "Valor Total (R$)",
-        xticks=data.index,
-        rotation=0,
+    ax3.collections[0].colorbar.set_label(
+        "Valor (R$)",
+        fontweight="bold",
+        labelpad=15,
+    )
+    ax3.set_title(
+        f"Mapa de Calor dos Dividendos - {ano_atual}",
+        pad=15,
+        fontsize=14,
+        fontweight="bold",
     )
 
-    for bar in bars.patches:
-        if bar.get_height() > 0:
-            ax5.annotate(
-                f"R$ {bar.get_height():.2f}",
-                (bar.get_x() + bar.get_width() / 2.0, bar.get_height()),
-                ha="center",
-                va="bottom",
-                xytext=(0, 8),
-                textcoords="offset points",
-                fontsize=10,
-                fontweight="bold",
-                rotation=45,
-            )
+    ax3.tick_params(axis="y", rotation=0)
+    ax3.tick_params(axis="x", rotation=45)
 
-    fig.tight_layout(pad=4.0, h_pad=5.0)
     return fig
 
 
