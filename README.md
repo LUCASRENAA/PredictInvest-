@@ -1,69 +1,69 @@
+# PredictInvest - Análise e Previsão de Ações e FIIs
 
-# Aplicativo de Análise de Ações
+O **PredictInvest** é um pipeline automatizado de extração, análise e visualização de dados do mercado financeiro brasileiro. Ele executa previsões de dividendos, coleta indicadores fundamentalistas de forma assíncrona e aplica algoritmos clássicos de valuation (Bazin e Graham) para encontrar o valor intrínseco e o potencial de valorização (upside) dos ativos.
 
-Este aplicativo executa várias funcionalidades relacionadas à análise de ações, incluindo previsão de dividendos, coleta de indicadores e aplicação de algoritmos de Bazin, Graham e a média dos dois ultimos algoritmos nos indicadores coletados.
+## Funcionalidades
 
-## Utilização
+- **Previsão de Dividendos:** Calcula estatísticas e gera dashboards visuais avançados (Gráficos de Barras, Heatmaps, Donut Charts) estimando os pagamentos do ano atual baseados no histórico.
 
-O aplicativo é executado a partir da linha de comando e oferece as seguintes opções:
+- **Scraping Resiliente:** Utiliza concorrência (`ThreadPoolExecutor`), Cache local dinâmico e sistema anti-bloqueio com retentativas exponenciais (`Tenacity`) para contornar Rate Limits.
 
-- `--previsao_dividendos`, `-pd`: Executa a previsão de dividendos para ações e FIIs. Antes de utilizar esta opção, é necessário ter os seguintes arquivos: `acoes.csv` e/ou `fiis.csv`.
+- **Valuation Automático:** Calcula o Preço Teto de Bazin, o Valor Intrínseco de Graham e uma média customizada, gerando um relatório em HTML fácil de ler.
 
-- `--pegar_indicadores`, `-pi`: Coleta os indicadores das ações. Esta opção executa o script `pegar_indicadores.py`.
+## Pré-requisitos e Configuração
 
-- `--algoritmos`, `-pa`: Executa os algoritmos de Bazin e Graham nos indicadores coletados. Para Bazin, é utilizado a fórmula `(LPA * PAYOUT/100) / 0.07`,para Graham é utilizado `(12 * LPA * VPA)` e para o metodo nathalia foi utilizado a média dos dois algoritmos anteriores.
+1. Renomeie ou crie um arquivo `.env` baseado nas variáveis listadas em `config.py`.
+2. Crie (ou atualize) os arquivos `acoes.csv` e `fiis.csv` na raiz do projeto.
 
-- `--all`: Executa todas as opções disponíveis: previsão de dividendos, coleta de indicadores e execução dos algoritmos.
+## 🐳 Como Executar com Docker (Recomendado)
 
-## Como Usar
+A aplicação foi conteinerizada para garantir que o Chromium (usado pelo Selenium no modo headless) e todas as dependências do Python rodem perfeitamente em qualquer sistema operacional.
 
-1. Certifique-se de ter os arquivos `acoes.csv` e/ou `fiis.csv` com os dados das ações e FIIs.
-2. Execute o script `main.py` passando as opções desejadas.
-
-### Previsão de Dividendos
-
-A previsão de dividendos é feita com base nos dados do ano anterior das ações e FIIs. O aplicativo gera um gráfico que mostra a distribuição dos dividendos por mês. Isso pode ajudar os investidores a planejar suas estratégias de investimento com base nas expectativas de renda passiva.
-
-![Previsão de Dividendos](img/Previsão_dividendos.png)
-
-
-### Coleta de Indicadores 
-Coleta os indicadores financeiros das ações e FIIs para análise posterior.
-[Download do arquivo indicadores.csv](indicadores.csv)
-
-### Algoritmos de Avaliação
-Executa algoritmos de Bazin e Graham nos indicadores coletados, fornecendo insights sobre o potencial de valorização das ações.
-[Download do arquivo valor_intrinseco.csv](valor_intrinseco.csv)
-
-### Exemplos de Uso
-
-- Executar a previsão de dividendos:
+**1. Construa e suba o ambiente (em segundo plano):**
 
 ```bash
-python main.py --previsao_dividendos
+docker compose up -d --build
 ```
 
-- Coletar os indicadores das ações:
+**2. Execute o pipeline completo:**
 
 ```bash
-python main.py --pegar_indicadores
+docker compose run --rm predictinvest python -m src.main --all
 ```
 
-- Executar os algoritmos de Bazin e Graham nos indicadores:
+## 💻 Como Executar Localmente (Python Nativo)
+
+Caso prefira rodar sem Docker, certifique-se de ter o Python 3.11+ e o Google Chrome instalados na sua máquina.
+
+**1. Instale as dependências:**
 
 ```bash
-python main.py --algoritmos
+pip install -r requirements.txt
 ```
 
-- Executar todas as opções disponíveis:
+**2. Execute os comandos a partir da raiz do projeto:**
 
 ```bash
-python main.py --all
+python -m src.main --all
 ```
 
----
 
+* Executar apenas a previsão de dividendos:
 
-# Resultados
+    ```bash
+    python -m src.main --previsao_dividendos
+    ```
 
-Os resultados estão sendo redirecionando para a pasta "arquivos" e lá possui a imagem da previsão de dividendos png e um arquivo html que demonstra qual é o possivel upgrade por tipo de algoritmo.
+* Executar apenas a coleta de indicadores:
+
+    ```bash
+    python -m src.main --pegar_indicadores
+    ```
+
+* Executar apenas os algoritmos (Graham/Bazin):
+
+    ```bash
+    python -m src.main --algoritmos
+    ```
+
+Para manter o repositório organizado, todas as saídas geradas pelo sistema são salvas automaticamente na pasta **`arquivos/`** (que é criada dinamicamente na primeira execução). Os arquivos de log detalhados ficam na pasta **`logs/`**.
