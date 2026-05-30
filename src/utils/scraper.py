@@ -151,8 +151,6 @@ class IndicatorScraper(ScraperBase):
         if soup is not None:
             ratios = soup.find_all("tr", class_="level0")
             for tr in ratios:
-                if isinstance(tr, PageElement):
-                    continue
                 tds = tr.find_all("td", class_="nw")
                 if len(tds) >= 2:
                     indicador = tds[0].text.strip()

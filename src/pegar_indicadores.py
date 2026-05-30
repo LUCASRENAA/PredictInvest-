@@ -25,7 +25,12 @@ def processar_linha_acoes(linha: dict, campos_permitidos: list) -> dict:
 
     logger.info("Processando ação: %s", ticker)
 
+    logger.info("Processando ação: %s", ticker)
+
     indicadores_str = scraper.obter_indicadores_scrape(ticker)
+    
+    # Adicione este print/log para vermos o que está vindo da internet:
+    logger.info(f"DADOS BRUTOS {ticker}: {indicadores_str}")
 
     # Converte dicionário str para float
     indicadores_float = {

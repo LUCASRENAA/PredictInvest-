@@ -296,12 +296,11 @@ def plotar_todos_graficos(
 
     return fig
 
-
 def cor_html(variacao: float) -> str:
     """Determina a cor HTML baseada no descasamento estrutural/estatístico usando o limite."""
     if variacao >= 10:
-        return "color: green;"
+        return "green"      
     elif 0 <= variacao < 10:
-        return "color: #b8860b;"
+        return "#b8860b"    
     else:
-        return "color: red;"
+        return "red"
