@@ -1,0 +1,10 @@
+services:
+  predictinvest:
+    build: .
+    container_name: predictinvest_app
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    command: tail -f /dev/null
